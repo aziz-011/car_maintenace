@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { FUEL_STATIONS } from '../data/vehicles';
 import { newId, today } from '../store';
 import type { FuelEntry } from '../types';
 import { Modal } from './Modal';
@@ -97,7 +98,12 @@ export function FuelForm({ vehicleId, entry, minOdometer, onSave, onClose }: Pro
         <p className="hint">Consumption is calculated between two full-tank fill-ups.</p>
         <label>
           Station
-          <input value={station} onChange={(e) => setStation(e.target.value)} />
+          <input list="fuel-stations" value={station} onChange={(e) => setStation(e.target.value)} autoComplete="off" />
+          <datalist id="fuel-stations">
+            {FUEL_STATIONS.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
         </label>
         <label>
           Notes

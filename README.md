@@ -4,8 +4,8 @@ A small web app to track your car's fuel consumption, services and upcoming main
 
 ## Features
 
-- **Vehicles**: track several cars and switch between them.
-- **Fuel log**: date, odometer, liters, price and total (price/L and total fill each other in), station, notes.
+- **Vehicles**: track several cars and switch between them. Pick from 78 makes and their models, or type your own.
+- **Fuel log**: date, odometer, liters, price and total (price/L and total fill each other in), station (suggestions from 60+ fuel brands), notes.
   Consumption (L/100 km) uses the full-tank method: fuel added between two full fill-ups divided by the distance driven. Partial fills are counted in the next full tank.
 - **Service history**: oil changes, filters, brakes, tires, inspection… with cost, garage and notes.
 - **Reminders**: repeat every N km and/or N months. Logging a service with the same name resets the reminder. Overdue and due-soon (within 1,000 km or 30 days) items appear on the overview.

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { CAR_MAKES, modelsFor } from '../data/vehicles';
 import { newId } from '../store';
 import type { Vehicle } from '../types';
 import { Modal } from './Modal';
@@ -40,11 +41,35 @@ export function VehicleForm({ vehicle, onSave, onClose }: Props) {
         <div className="row">
           <label>
             Make
-            <input required value={make} onChange={(e) => setMake(e.target.value)} placeholder="Toyota" />
+            <input
+              required
+              list="car-makes"
+              value={make}
+              onChange={(e) => setMake(e.target.value)}
+              placeholder="Toyota"
+              autoComplete="off"
+            />
+            <datalist id="car-makes">
+              {CAR_MAKES.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
           </label>
           <label>
             Model
-            <input required value={model} onChange={(e) => setModel(e.target.value)} placeholder="Corolla" />
+            <input
+              required
+              list="car-models"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={modelsFor(make)[0] ?? 'Corolla'}
+              autoComplete="off"
+            />
+            <datalist id="car-models">
+              {modelsFor(make).map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
           </label>
         </div>
         <div className="row">
