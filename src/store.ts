@@ -6,7 +6,9 @@ const STORAGE_KEY = 'car-maintenance:v1';
 const EMPTY: AppData = { vehicles: [], fuel: [], services: [], reminders: [] };
 
 export function newId(): string {
-  return crypto.randomUUID();
+  // randomUUID needs a secure context, which a file opened from disk may not be.
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 }
 
 export function today(): string {

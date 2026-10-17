@@ -14,6 +14,10 @@ A small web app to track your car's fuel consumption, services and upcoming main
 
 Works on desktop and phone (bottom tab bar on small screens).
 
+## Try it
+
+Download [`car-maintenance.html`](car-maintenance.html) and open it in your browser. It is the whole app in one file and works offline.
+
 ## Development
 
 ```bash
@@ -22,6 +26,7 @@ npm run dev      # start the dev server
 npm test         # unit tests (consumption and reminder logic)
 npm run lint
 npm run build    # production build in dist/
+npm run build:single  # standalone car-maintenance.html (open it directly, no server)
 ```
 
 Built with React, TypeScript and Vite.
