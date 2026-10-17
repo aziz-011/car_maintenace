@@ -37,7 +37,6 @@ export const SERVICE_TYPES = [
   'Transmission fluid',
   'Inspection',
   'Insurance',
-  'Other',
 ] as const;
 
 export interface ServiceEntry {

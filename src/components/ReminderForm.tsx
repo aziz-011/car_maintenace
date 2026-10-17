@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { newId, today } from '../store';
 import { SERVICE_TYPES, type Reminder } from '../types';
 import { Modal } from './Modal';
+import { SelectOrOther } from './SelectOrOther';
 
 interface Props {
   vehicleId: string;
@@ -43,12 +44,7 @@ export function ReminderForm({ vehicleId, reminder, currentOdometer, onSave, onC
       <form onSubmit={submit} className="form">
         <label>
           Service
-          <input list="reminder-types" required value={type} onChange={(e) => setType(e.target.value)} />
-          <datalist id="reminder-types">
-            {SERVICE_TYPES.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
+          <SelectOrOther required value={type} onChange={setType} options={SERVICE_TYPES} otherPlaceholder="Service name" />
         </label>
         <p className="hint">Logging a service with this exact name resets the reminder.</p>
         <div className="row">

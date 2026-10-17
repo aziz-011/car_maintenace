@@ -3,6 +3,7 @@ import { CAR_MAKES, modelsFor } from '../data/vehicles';
 import { newId } from '../store';
 import type { Vehicle } from '../types';
 import { Modal } from './Modal';
+import { SelectOrOther } from './SelectOrOther';
 
 interface Props {
   vehicle?: Vehicle;
@@ -17,6 +18,12 @@ export function VehicleForm({ vehicle, onSave, onClose }: Props) {
   const [year, setYear] = useState(vehicle?.year?.toString() ?? '');
   const [plate, setPlate] = useState(vehicle?.plate ?? '');
   const [odometer, setOdometer] = useState(vehicle?.initialOdometer.toString() ?? '');
+
+  // A model from the previous make's list no longer applies.
+  const changeMake = (value: string) => {
+    if (!modelsFor(value).includes(model)) setModel('');
+    setMake(value);
+  };
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -41,35 +48,24 @@ export function VehicleForm({ vehicle, onSave, onClose }: Props) {
         <div className="row">
           <label>
             Make
-            <input
-              required
-              list="car-makes"
-              value={make}
-              onChange={(e) => setMake(e.target.value)}
-              placeholder="Toyota"
-              autoComplete="off"
-            />
-            <datalist id="car-makes">
-              {CAR_MAKES.map((m) => (
-                <option key={m} value={m} />
-              ))}
-            </datalist>
+            <SelectOrOther required value={make} onChange={changeMake} options={CAR_MAKES} otherPlaceholder="Make" />
           </label>
           <label>
             Model
-            <input
-              required
-              list="car-models"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={modelsFor(make)[0] ?? 'Corolla'}
-              autoComplete="off"
-            />
-            <datalist id="car-models">
-              {modelsFor(make).map((m) => (
-                <option key={m} value={m} />
-              ))}
-            </datalist>
+            {make === '' ? (
+              <select disabled>
+                <option>Pick a make</option>
+              </select>
+            ) : (
+              <SelectOrOther
+                key={make}
+                required
+                value={model}
+                onChange={setModel}
+                options={modelsFor(make)}
+                otherPlaceholder="Model"
+              />
+            )}
           </label>
         </div>
         <div className="row">

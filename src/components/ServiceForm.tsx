@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { newId, today } from '../store';
 import { SERVICE_TYPES, type ServiceEntry } from '../types';
 import { Modal } from './Modal';
+import { SelectOrOther } from './SelectOrOther';
 
 interface Props {
   vehicleId: string;
@@ -38,12 +39,7 @@ export function ServiceForm({ vehicleId, entry, currentOdometer, onSave, onClose
       <form onSubmit={submit} className="form">
         <label>
           Service
-          <input list="service-types" required value={type} onChange={(e) => setType(e.target.value)} />
-          <datalist id="service-types">
-            {SERVICE_TYPES.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
+          <SelectOrOther required value={type} onChange={setType} options={SERVICE_TYPES} otherPlaceholder="Service name" />
         </label>
         <div className="row">
           <label>
