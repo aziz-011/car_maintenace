@@ -1,11 +1,14 @@
 import { useState } from 'react';
+import type { OptionGroup } from '../types';
 
 const OTHER = '__other';
 
 interface Props {
   value: string;
   onChange: (value: string) => void;
-  options: readonly string[];
+  options?: readonly string[];
+  /** Options shown under headings instead of a flat list. */
+  groups?: OptionGroup[];
   required?: boolean;
   /** Label of the empty first option. */
   placeholder?: string;
@@ -17,14 +20,15 @@ interface Props {
  * A dropdown of known options with an "Other…" entry that reveals a text input.
  * Unlike a datalist, the full list opens on every browser, including phones.
  */
-export function SelectOrOther({ value, onChange, options, required, placeholder = 'Choose…', otherPlaceholder }: Props) {
-  const known = options.includes(value);
+export function SelectOrOther({ value, onChange, options = [], groups, required, placeholder = 'Choose…', otherPlaceholder }: Props) {
+  const all = groups ? groups.flatMap((g) => g.options) : options;
+  const known = all.includes(value);
   const [custom, setCustom] = useState(value !== '' && !known);
-  const showInput = options.length === 0 || custom || (value !== '' && !known);
+  const showInput = all.length === 0 || custom || (value !== '' && !known);
 
   return (
     <>
-      {options.length > 0 && (
+      {all.length > 0 && (
         <select
           required={required && !showInput}
           value={showInput ? OTHER : value}
@@ -35,11 +39,21 @@ export function SelectOrOther({ value, onChange, options, required, placeholder 
           }}
         >
           <option value="">{placeholder}</option>
-          {options.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
+          {groups
+            ? groups.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.options.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </optgroup>
+              ))
+            : options.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
           <option value={OTHER}>Other…</option>
         </select>
       )}
@@ -49,7 +63,7 @@ export function SelectOrOther({ value, onChange, options, required, placeholder 
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={otherPlaceholder}
-          autoFocus={options.length > 0}
+          autoFocus={all.length > 0}
           autoComplete="off"
         />
       )}

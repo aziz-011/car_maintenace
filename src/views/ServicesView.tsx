@@ -33,6 +33,15 @@ export function ServicesView({ entries, onAdd, onEdit, onDelete }: Props) {
                     {fmtDate(e.date)} · {fmtKm(e.odometer)}
                     {e.shop && ` · ${e.shop}`}
                   </span>
+                  {e.parts && e.parts.length > 0 && (
+                    <ul className="chips small">
+                      {e.parts.map((p) => (
+                        <li key={p} className="chip">
+                          {p}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {e.notes && <span className="notes">{e.notes}</span>}
                 </div>
                 <div className="list-end">

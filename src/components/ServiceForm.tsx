@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { newId, today } from '../store';
-import { SERVICE_TYPES, type ServiceEntry } from '../types';
+import { COMPONENT_GROUPS, SERVICE_TYPES, type ServiceEntry } from '../types';
 import { Modal } from './Modal';
+import { PartsPicker } from './PartsPicker';
 import { SelectOrOther } from './SelectOrOther';
 
 interface Props {
@@ -16,6 +17,7 @@ export function ServiceForm({ vehicleId, entry, currentOdometer, onSave, onClose
   const [date, setDate] = useState(entry?.date ?? today());
   const [odometer, setOdometer] = useState(entry?.odometer.toString() ?? currentOdometer.toString());
   const [type, setType] = useState(entry?.type ?? SERVICE_TYPES[0]);
+  const [parts, setParts] = useState<string[]>(entry?.parts ?? []);
   const [cost, setCost] = useState(entry?.cost.toString() ?? '');
   const [shop, setShop] = useState(entry?.shop ?? '');
   const [notes, setNotes] = useState(entry?.notes ?? '');
@@ -28,6 +30,7 @@ export function ServiceForm({ vehicleId, entry, currentOdometer, onSave, onClose
       date,
       odometer: Number(odometer),
       type: type.trim(),
+      parts: parts.length ? parts : undefined,
       cost: Number(cost) || 0,
       shop: shop.trim() || undefined,
       notes: notes.trim() || undefined,
@@ -41,6 +44,10 @@ export function ServiceForm({ vehicleId, entry, currentOdometer, onSave, onClose
           Service
           <SelectOrOther required value={type} onChange={setType} options={SERVICE_TYPES} otherPlaceholder="Service name" />
         </label>
+        <div className="field">
+          <span>Parts replaced</span>
+          <PartsPicker value={parts} onChange={setParts} groups={COMPONENT_GROUPS} />
+        </div>
         <div className="row">
           <label>
             Date
@@ -63,7 +70,7 @@ export function ServiceForm({ vehicleId, entry, currentOdometer, onSave, onClose
         </div>
         <label>
           Notes
-          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Parts used, oil grade…" />
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Oil grade, part brands…" />
         </label>
         <div className="actions">
           <button type="button" className="btn ghost" onClick={onClose}>

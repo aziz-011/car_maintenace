@@ -91,3 +91,28 @@ describe('reminderStatus', () => {
     expect(status.dueDate).toBe('2027-06-01');
   });
 });
+
+describe('reminderStatus with parts', () => {
+  it('resets when a service replaced the matching part', () => {
+    const reminder: Reminder = {
+      id: 'r',
+      vehicleId: 'v',
+      type: 'Air filter',
+      intervalKm: 20000,
+      lastDate: '2025-01-01',
+      lastOdometer: 30000,
+    };
+    const service: ServiceEntry = {
+      id: 's',
+      vehicleId: 'v',
+      date: '2026-05-01',
+      odometer: 49000,
+      type: 'Periodic service',
+      parts: ['Oil filter', 'Air filter'],
+      cost: 150,
+    };
+    const status = reminderStatus(reminder, [service], 50500, '2026-06-01');
+    expect(status.state).toBe('ok');
+    expect(status.dueOdometer).toBe(69000);
+  });
+});

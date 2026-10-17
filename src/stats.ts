@@ -118,9 +118,13 @@ export function reminderStatus(
   odometer: number,
   today: string,
 ): ReminderStatus {
-  // The most recent matching service resets the reminder.
+  // The most recent service of that type, or that replaced that part, resets the reminder.
   const last = services
-    .filter((s) => s.vehicleId === reminder.vehicleId && s.type === reminder.type)
+    .filter(
+      (s) =>
+        s.vehicleId === reminder.vehicleId &&
+        (s.type === reminder.type || (s.parts ?? []).includes(reminder.type)),
+    )
     .sort(byOdometer)
     .at(-1);
   const lastDate = last && last.date > reminder.lastDate ? last.date : reminder.lastDate;

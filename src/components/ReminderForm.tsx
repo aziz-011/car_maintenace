@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { newId, today } from '../store';
-import { SERVICE_TYPES, type Reminder } from '../types';
+import { COMPONENT_GROUPS, SERVICE_TYPES, type Reminder } from '../types';
+
+const REMINDER_GROUPS = [{ label: 'Services', options: SERVICE_TYPES }, ...COMPONENT_GROUPS];
 import { Modal } from './Modal';
 import { SelectOrOther } from './SelectOrOther';
 
@@ -43,10 +45,10 @@ export function ReminderForm({ vehicleId, reminder, currentOdometer, onSave, onC
     <Modal title={reminder ? 'Edit reminder' : 'Add reminder'} onClose={onClose}>
       <form onSubmit={submit} className="form">
         <label>
-          Service
-          <SelectOrOther required value={type} onChange={setType} options={SERVICE_TYPES} otherPlaceholder="Service name" />
+          Service or part
+          <SelectOrOther required value={type} onChange={setType} groups={REMINDER_GROUPS} otherPlaceholder="Service or part" />
         </label>
-        <p className="hint">Logging a service with this exact name resets the reminder.</p>
+        <p className="hint">Resets when you log a service of this type, or one that replaced this part.</p>
         <div className="row">
           <label>
             Every (km)
