@@ -27,13 +27,13 @@ export const SERVICE_TYPES = [
   'Brake service',
   'Tire change',
   'Repair',
-  'Inspection',
+  'Technical inspection (visite technique)',
   'Diagnostics',
   'Air conditioning',
   'Bodywork',
   'Car wash',
   'Insurance',
-  'Registration / tax',
+  'Road tax / vignette',
 ];
 
 export interface OptionGroup {
@@ -65,6 +65,21 @@ export const COMPONENT_GROUPS: OptionGroup[] = [
 
 export const COMPONENTS = COMPONENT_GROUPS.flatMap((g) => g.options);
 
+/** Paperwork and legal deadlines, usually tracked by an expiry date. */
+export const DOCUMENT_TYPES = [
+  'Technical inspection (visite technique)',
+  'Insurance',
+  'Road tax / vignette',
+  'Registration',
+  'Driving licence',
+  'Emissions test',
+  'Warranty',
+  'Roadside assistance',
+  'Fire extinguisher',
+  'Toll badge',
+  'Parking permit',
+];
+
 export interface ServiceEntry {
   id: string;
   vehicleId: string;
@@ -82,6 +97,8 @@ export interface Reminder {
   id: string;
   vehicleId: string;
   type: string;
+  /** Fixed deadline such as an insurance expiry. When set, the km/month intervals are not used. */
+  dueDate?: string;
   /** Repeat every N km (optional). */
   intervalKm?: number;
   /** Repeat every N months (optional). */

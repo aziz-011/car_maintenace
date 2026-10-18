@@ -116,3 +116,24 @@ describe('reminderStatus with parts', () => {
     expect(status.dueOdometer).toBe(69000);
   });
 });
+
+describe('reminderStatus with a fixed date', () => {
+  const insurance: Reminder = {
+    id: 'i',
+    vehicleId: 'v',
+    type: 'Insurance',
+    dueDate: '2026-12-01',
+    lastDate: '2026-01-01',
+    lastOdometer: 0,
+  };
+
+  it('ignores the odometer and uses the date', () => {
+    expect(reminderStatus(insurance, [], 999999, '2026-10-01').state).toBe('ok');
+    expect(reminderStatus(insurance, [], 0, '2026-11-15').state).toBe('soon');
+    expect(reminderStatus(insurance, [], 0, '2026-12-01').state).toBe('overdue');
+  });
+
+  it('uses a custom warning window', () => {
+    expect(reminderStatus(insurance, [], 0, '2026-10-01', 90).state).toBe('soon');
+  });
+});

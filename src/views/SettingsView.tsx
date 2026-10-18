@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { EmailSettings } from '../components/EmailSettings';
 import { isAppData, today } from '../store';
 import type { AppData, Vehicle } from '../types';
 
@@ -70,10 +71,19 @@ export function SettingsView({ data, onAddVehicle, onEditVehicle, onDeleteVehicl
       </section>
 
       <section className="card">
+        <h3>Email reminders</h3>
+        {serverMode ? (
+          <EmailSettings />
+        ) : (
+          <p className="muted">Email reminders need the home server (start-server.bat). This single-file version can't send emails.</p>
+        )}
+      </section>
+
+      <section className="card">
         <h3>Backup</h3>
         <p className="muted">
           {serverMode
-            ? 'Your data is saved on the PC running the server (with a daily backup). You can also export a copy here.'
+            ? 'Your data is saved on the PC running the server, in the CarMaintenance folder of your user folder, with a daily backup. You can also export a copy here.'
             : 'Your data is stored only in this browser. Export a backup regularly, or to move it to another device.'}
         </p>
         <div className="quick-actions">

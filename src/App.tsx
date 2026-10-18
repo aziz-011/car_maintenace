@@ -3,7 +3,7 @@ import { FuelForm } from './components/FuelForm';
 import { ReminderForm } from './components/ReminderForm';
 import { ServiceForm } from './components/ServiceForm';
 import { VehicleForm } from './components/VehicleForm';
-import { currentOdometer, reminderStatus } from './stats';
+import { addMonths, currentOdometer, reminderStatus } from './stats';
 import { today, useAppData, type SyncStatus } from './store';
 import type { FuelEntry, Reminder, ServiceEntry, Vehicle } from './types';
 import { Dashboard } from './views/Dashboard';
@@ -25,7 +25,7 @@ type Dialog =
   | { kind: 'vehicle'; item?: Vehicle }
   | { kind: 'fuel'; item?: FuelEntry }
   | { kind: 'service'; item?: ServiceEntry }
-  | { kind: 'reminder'; item?: Reminder };
+  | { kind: 'reminder'; item?: Reminder; initialType?: string };
 
 const SELECTED_KEY = 'car-maintenance:selected';
 
@@ -174,6 +174,7 @@ export default function App() {
             reminders={statuses}
             onAddFuel={() => setDialog({ kind: 'fuel' })}
             onAddService={() => setDialog({ kind: 'service' })}
+            onAddReminder={(initialType) => setDialog({ kind: 'reminder', initialType })}
           />
         )}
         {tab === 'fuel' && (
@@ -197,6 +198,8 @@ export default function App() {
             statuses={statuses}
             onAdd={() => setDialog({ kind: 'reminder' })}
             onEdit={(item) => setDialog({ kind: 'reminder', item })}
+            // Renewing usually extends the deadline by a year; the form lets you adjust it.
+            onRenew={(r) => setDialog({ kind: 'reminder', item: { ...r, dueDate: addMonths(r.dueDate!, 12) } })}
             onDelete={(r) => remove('reminders', r.id)}
           />
         )}
@@ -241,6 +244,7 @@ export default function App() {
         <ReminderForm
           vehicleId={vehicle.id}
           reminder={dialog.item}
+          initialType={dialog.initialType}
           currentOdometer={odometer}
           onSave={(r) => {
             update((d) => ({ ...d, reminders: upsert(d.reminders, r) }));

@@ -384,6 +384,11 @@ th {
   border-color: transparent;
 }
 
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .link {
   background: none;
   border: none;
@@ -404,6 +409,33 @@ th {
   line-height: 1;
   cursor: pointer;
   color: var(--text-2);
+}
+
+.btn.small {
+  padding: 5px 10px;
+  font-size: 0.85rem;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented button {
+  padding: 8px;
+  background: var(--bg);
+  border: none;
+  cursor: pointer;
+  color: var(--text-2);
+}
+
+.segmented button[aria-checked='true'] {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
 }
 
 .quick-actions {

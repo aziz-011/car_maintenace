@@ -1,22 +1,31 @@
 // Serves the built app and stores its data in a JSON file, so every device on
-// the local network sees the same data. No dependencies beyond Node itself.
+// the local network sees the same data. Also emails reminders when configured.
 import { createServer } from 'node:http';
-import { copyFile, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { networkInterfaces } from 'node:os';
+import { homedir, networkInterfaces } from 'node:os';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sendEmail, PROVIDERS } from './email.mjs';
+import { collectAlerts, reminderEmail } from './notify.mjs';
 import { applyOps, emptyData, isAppData } from './ops.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DIST = join(ROOT, 'dist');
-const DATA_DIR = resolve(process.env.DATA_DIR ?? join(ROOT, 'data'));
+// Outside the project folder, so updating or re-downloading the app never touches the data.
+const DATA_DIR = resolve(process.env.DATA_DIR ?? join(homedir(), 'CarMaintenance'));
 const DATA_FILE = join(DATA_DIR, 'car-data.json');
+const SETTINGS_FILE = join(DATA_DIR, 'settings.json');
+const NOTIFY_FILE = join(DATA_DIR, 'notify-state.json');
 const BACKUP_DIR = join(DATA_DIR, 'backups');
+const OLD_DATA_DIR = join(ROOT, 'data');
 const PORT = Number(process.env.PORT ?? 8080);
 const HOST = process.env.HOST ?? '0.0.0.0';
 const MAX_BODY = 10 * 1024 * 1024;
-const KEEP_BACKUPS = 30;
+const KEEP_BACKUPS = 60;
+const CHECK_EVERY_MS = 60 * 60 * 1000;
+/** Emails are only sent from this hour on (local time), so none arrive at night. */
+const SEND_FROM_HOUR = 8;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -29,38 +38,165 @@ const MIME = {
   '.webmanifest': 'application/manifest+json',
 };
 
+const DEFAULT_EMAIL = {
+  enabled: false,
+  provider: 'resend',
+  apiKey: '',
+  from: 'Car Maintenance <onboarding@resend.dev>',
+  to: '',
+  daysBefore: 30,
+  weeklyBackup: true,
+};
+
 /** { version, updatedAt, data } — version increases on every change. */
 let store = { version: 0, updatedAt: null, data: emptyData() };
+let settings = { email: { ...DEFAULT_EMAIL } };
+/** { sent: { [alertKey]: isoDate }, lastBackupEmail: isoDate | null } */
+let notifyState = { sent: {}, lastBackupEmail: null };
 
-async function loadStore() {
-  await mkdir(BACKUP_DIR, { recursive: true });
-  if (!existsSync(DATA_FILE)) return;
-  const parsed = JSON.parse(await readFile(DATA_FILE, 'utf8'));
-  if (!isAppData(parsed.data)) throw new Error(`${DATA_FILE} is not valid car data`);
-  store = parsed;
+async function readJson(file, fallback) {
+  return existsSync(file) ? JSON.parse(await readFile(file, 'utf8')) : fallback;
 }
+
+/** Writes via a temporary file and rename, so a crash mid-write never leaves a half-written file. */
+async function writeJson(file, value) {
+  await writeFile(`${file}.tmp`, JSON.stringify(value, null, 2));
+  await rename(`${file}.tmp`, file);
+}
+
+/** Earlier versions kept data inside the project folder; copy it to the new place once. */
+async function migrateOldDataDir() {
+  if (existsSync(DATA_FILE) || !existsSync(join(OLD_DATA_DIR, 'car-data.json'))) return;
+  await cp(OLD_DATA_DIR, DATA_DIR, { recursive: true });
+  console.log(`Moved your data from ${OLD_DATA_DIR} to ${DATA_DIR} (the old copy is left in place).`);
+}
+
+async function load() {
+  await mkdir(BACKUP_DIR, { recursive: true });
+  await migrateOldDataDir();
+  const parsed = await readJson(DATA_FILE, null);
+  if (parsed) {
+    if (!isAppData(parsed.data)) throw new Error(`${DATA_FILE} is not valid car data`);
+    store = parsed;
+  }
+  settings = { email: { ...DEFAULT_EMAIL, ...(await readJson(SETTINGS_FILE, {})).email } };
+  notifyState = { ...notifyState, ...(await readJson(NOTIFY_FILE, {})) };
+}
+
+const localDate = (d = new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
 /** Keeps one backup per day, from before that day's first change, and prunes old ones. */
 async function backupOncePerDay() {
   if (!existsSync(DATA_FILE)) return;
-  const target = join(BACKUP_DIR, `car-data-${new Date().toISOString().slice(0, 10)}.json`);
+  const target = join(BACKUP_DIR, `car-data-${localDate()}.json`);
   if (existsSync(target)) return;
   await copyFile(DATA_FILE, target);
   const old = (await readdir(BACKUP_DIR)).filter((f) => f.endsWith('.json')).sort().slice(0, -KEEP_BACKUPS);
   await Promise.all(old.map((f) => rm(join(BACKUP_DIR, f))));
 }
 
-// Writes are chained so two requests never write the file at the same time.
+// Writes are chained so two requests never write the same file at the same time.
 let writing = Promise.resolve();
+const queueWrite = (fn) => (writing = writing.then(fn, fn));
+
 function save(next) {
   store = { version: store.version + 1, updatedAt: new Date().toISOString(), data: next };
-  const snapshot = JSON.stringify(store, null, 2);
-  writing = writing.then(async () => {
+  const snapshot = store;
+  return queueWrite(async () => {
     await backupOncePerDay();
-    await writeFile(`${DATA_FILE}.tmp`, snapshot);
-    await rename(`${DATA_FILE}.tmp`, DATA_FILE);
+    await writeJson(DATA_FILE, snapshot);
   });
-  return writing;
+}
+
+/** Settings as sent to the browser: the API key itself never leaves the PC. */
+function publicSettings() {
+  const { apiKey, ...email } = settings.email;
+  return {
+    email: { ...email, hasKey: !!apiKey, keyHint: apiKey ? `…${apiKey.slice(-4)}` : '' },
+    providers: Object.fromEntries(Object.entries(PROVIDERS).map(([id, p]) => [id, p.label])),
+  };
+}
+
+function updateSettings(body) {
+  const e = body?.email;
+  if (!e || typeof e !== 'object') throw new Error('Missing email settings');
+  if (e.provider !== undefined && !PROVIDERS[e.provider]) throw new Error('Unknown provider');
+  const days = e.daysBefore === undefined ? settings.email.daysBefore : Number(e.daysBefore);
+  if (!Number.isInteger(days) || days < 1 || days > 365) throw new Error('Days before must be between 1 and 365');
+  const str = (v, old) => (typeof v === 'string' ? v.trim() : old);
+  settings = {
+    email: {
+      enabled: e.enabled === undefined ? settings.email.enabled : !!e.enabled,
+      provider: e.provider ?? settings.email.provider,
+      // An empty key field means "keep the saved key"; clearing it is done with removeKey.
+      apiKey: e.removeKey ? '' : str(e.apiKey, '') || settings.email.apiKey,
+      from: str(e.from, settings.email.from),
+      to: str(e.to, settings.email.to),
+      daysBefore: days,
+      weeklyBackup: e.weeklyBackup === undefined ? settings.email.weeklyBackup : !!e.weeklyBackup,
+    },
+  };
+  return queueWrite(() => writeJson(SETTINGS_FILE, settings));
+}
+
+function lanAddresses() {
+  return Object.values(networkInterfaces())
+    .flat()
+    .filter((a) => a && a.family === 'IPv4' && !a.internal)
+    .map((a) => a.address);
+}
+
+const appUrl = () => `http://${lanAddresses()[0] ?? 'localhost'}:${PORT}`;
+
+function backupAttachment() {
+  return {
+    filename: `car-maintenance-backup-${localDate()}.json`,
+    base64: Buffer.from(JSON.stringify(store.data, null, 2)).toString('base64'),
+  };
+}
+
+/** Sends reminder emails for anything newly due, and the weekly backup. Returns what it did. */
+async function runEmailChecks({ force = false } = {}) {
+  const email = settings.email;
+  if (!email.enabled || !email.apiKey || !email.to) return { skipped: 'Email reminders are off' };
+  if (!force && new Date().getHours() < SEND_FROM_HOUR) return { skipped: 'Too early in the day' };
+  const result = { reminders: 0, backup: false };
+
+  const alerts = collectAlerts(store.data, { today: localDate(), soonDays: email.daysBefore, sent: notifyState.sent });
+  const fresh = alerts.filter((a) => a.isNew);
+  if (fresh.length) {
+    await sendEmail(email, reminderEmail(alerts, appUrl()));
+    const now = new Date().toISOString();
+    for (const a of fresh) notifyState.sent[a.key] = now;
+    result.reminders = fresh.length;
+  }
+
+  const weekAgo = Date.now() - 7 * 86_400_000;
+  if (email.weeklyBackup && store.version > 0 && (!notifyState.lastBackupEmail || Date.parse(notifyState.lastBackupEmail) < weekAgo)) {
+    await sendEmail(email, {
+      subject: 'Car Maintenance: weekly backup',
+      text: 'Your car data is attached. Keep this email: to restore, open the app, go to Settings and use Import JSON with the attached file.',
+      html: '<p>Your car data is attached.</p><p>Keep this email: to restore, open the app, go to <strong>Settings → Import JSON</strong> and choose the attached file.</p>',
+      attachments: [backupAttachment()],
+    });
+    notifyState.lastBackupEmail = new Date().toISOString();
+    result.backup = true;
+  }
+
+  // Forget alerts older than a year so the file does not grow forever.
+  const yearAgo = Date.now() - 365 * 86_400_000;
+  for (const [k, v] of Object.entries(notifyState.sent)) if (Date.parse(v) < yearAgo) delete notifyState.sent[k];
+  if (result.reminders || result.backup) await queueWrite(() => writeJson(NOTIFY_FILE, notifyState));
+  return result;
+}
+
+async function scheduledCheck() {
+  try {
+    const r = await runEmailChecks();
+    if (r.reminders || r.backup) console.log(`${new Date().toLocaleString()}: emailed ${r.reminders} reminder(s)${r.backup ? ' and the weekly backup' : ''}.`);
+  } catch (e) {
+    console.error(`${new Date().toLocaleString()}: could not send email: ${e.message}`);
+  }
 }
 
 function sendJson(res, status, body) {
@@ -76,28 +212,46 @@ async function readBody(req) {
     if (size > MAX_BODY) throw Object.assign(new Error('Body too large'), { status: 413 });
     chunks.push(chunk);
   }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    throw Object.assign(new Error('Invalid JSON'), { status: 400 });
+  }
 }
 
+const routes = {
+  'GET /api/data': async () => [200, store],
+  'POST /api/ops': async (req) => {
+    const body = await readBody(req);
+    await save(applyOps(store.data, body.ops));
+    return [200, store];
+  },
+  'GET /api/settings': async () => [200, publicSettings()],
+  'PUT /api/settings': async (req) => {
+    await updateSettings(await readBody(req));
+    return [200, publicSettings()];
+  },
+  'POST /api/email/test': async () => {
+    await sendEmail(settings.email, {
+      subject: 'Car Maintenance: test email',
+      text: `Email reminders work. You will get an email when a reminder is ${settings.email.daysBefore} days away, a week before, and when it is overdue.\n\nOpen the app: ${appUrl()}`,
+      html: `<p>Email reminders work.</p><p>You will get an email when a reminder is ${settings.email.daysBefore} days away, a week before, and when it is overdue.</p><p><a href="${appUrl()}">Open the app</a></p>`,
+    });
+    return [200, { ok: true }];
+  },
+  'POST /api/email/check': async () => [200, await runEmailChecks({ force: true })],
+};
+
 async function handleApi(req, res, path) {
-  if (path === '/api/data' && req.method === 'GET') return sendJson(res, 200, store);
-  if (path === '/api/ops' && req.method === 'POST') {
-    let body;
-    try {
-      body = await readBody(req);
-    } catch (e) {
-      return sendJson(res, e.status ?? 400, { error: e.status ? e.message : 'Invalid JSON' });
-    }
-    let next;
-    try {
-      next = applyOps(store.data, body.ops);
-    } catch (e) {
-      return sendJson(res, 400, { error: e.message });
-    }
-    await save(next);
-    return sendJson(res, 200, store);
+  const route = routes[`${req.method} ${path}`];
+  if (!route) return sendJson(res, 404, { error: 'Not found' });
+  try {
+    const [status, body] = await route(req);
+    sendJson(res, status, body);
+  } catch (e) {
+    // Validation and provider errors are shown to the user as-is.
+    sendJson(res, e.status ?? 400, { error: e.message });
   }
-  sendJson(res, 404, { error: 'Not found' });
 }
 
 async function serveStatic(res, path) {
@@ -129,22 +283,18 @@ const server = createServer(async (req, res) => {
   }
 });
 
-function lanAddresses() {
-  return Object.values(networkInterfaces())
-    .flat()
-    .filter((a) => a && a.family === 'IPv4' && !a.internal)
-    .map((a) => a.address);
-}
-
-await loadStore();
+await load();
 if (!existsSync(join(DIST, 'index.html'))) console.warn('Warning: dist/ is missing. Run "npm run build" first.');
 
 server.listen(PORT, HOST, () => {
   console.log('\nCar Maintenance is running.\n');
   console.log(`  On this PC:        http://localhost:${PORT}`);
   for (const ip of lanAddresses()) console.log(`  On your network:   http://${ip}:${PORT}`);
-  console.log(`\n  Data file: ${DATA_FILE}`);
-  console.log('  Keep this window open. Press Ctrl+C to stop.\n');
+  console.log(`\n  Your data:         ${DATA_DIR}`);
+  console.log(`  Email reminders:   ${settings.email.enabled ? `on, to ${settings.email.to}` : 'off (turn on in Settings)'}`);
+  console.log('\n  Keep this window open. Press Ctrl+C to stop.\n');
+  setTimeout(scheduledCheck, 30_000);
+  setInterval(scheduledCheck, CHECK_EVERY_MS);
 });
 
 server.on('error', (e) => {
