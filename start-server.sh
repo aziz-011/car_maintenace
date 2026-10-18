@@ -15,4 +15,4 @@ fi
 
 echo "Building the app..."
 npm run build
-exec node server/server.mjs
+exec node dist-server/server.mjs

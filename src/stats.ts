@@ -117,7 +117,21 @@ export function reminderStatus(
   services: ServiceEntry[],
   odometer: number,
   today: string,
+  soonDays = SOON_DAYS,
 ): ReminderStatus {
+  if (reminder.dueDate) {
+    const daysLeft = daysBetween(today, reminder.dueDate);
+    const state: ReminderState = daysLeft <= 0 ? 'overdue' : daysLeft <= soonDays ? 'soon' : 'ok';
+    return {
+      reminder,
+      lastDate: reminder.lastDate,
+      lastOdometer: reminder.lastOdometer,
+      dueDate: reminder.dueDate,
+      daysLeft,
+      state,
+    };
+  }
+
   // The most recent service of that type, or that replaced that part, resets the reminder.
   const last = services
     .filter(
@@ -140,7 +154,7 @@ export function reminderStatus(
     state = 'overdue';
   } else if (
     (kmLeft !== undefined && kmLeft <= SOON_KM) ||
-    (daysLeft !== undefined && daysLeft <= SOON_DAYS)
+    (daysLeft !== undefined && daysLeft <= soonDays)
   ) {
     state = 'soon';
   }

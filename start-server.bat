@@ -20,7 +20,7 @@ echo Building the app...
 call npm run build
 if errorlevel 1 goto fail
 
-node server\server.mjs
+node dist-server\server.mjs
 pause
 exit /b 0
 

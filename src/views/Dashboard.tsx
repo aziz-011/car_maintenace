@@ -12,12 +12,24 @@ interface Props {
   reminders: ReminderStatus[];
   onAddFuel: () => void;
   onAddService: () => void;
+  onAddReminder: (type: string) => void;
 }
 
-export function Dashboard({ odometer, fuel, services, reminders, onAddFuel, onAddService }: Props) {
+/** Deadlines most drivers have, offered as one-tap additions until they are set. */
+const KEY_DATES = [
+  { type: 'Technical inspection (visite technique)', label: 'Visite technique' },
+  { type: 'Insurance', label: 'Insurance' },
+  { type: 'Road tax / vignette', label: 'Road tax / vignette' },
+];
+
+export function Dashboard({ odometer, fuel, services, reminders, onAddFuel, onAddService, onAddReminder }: Props) {
   const summary = fuelSummary(fuel);
   const serviceCost = services.reduce((s, e) => s + e.cost, 0);
   const attention = reminders.filter((r) => r.state !== 'ok');
+  const dated = reminders
+    .filter((r) => r.reminder.dueDate)
+    .sort((a, b) => a.reminder.dueDate!.localeCompare(b.reminder.dueDate!));
+  const missing = KEY_DATES.filter((k) => !reminders.some((r) => r.reminder.type === k.type));
   const recent = [
     ...fuel.map((f) => ({ id: f.id, date: f.date, label: `Fuel · ${fmtNum(f.liters)} L`, cost: f.totalCost })),
     ...services.map((s) => ({ id: s.id, date: s.date, label: s.type, cost: s.cost })),
@@ -80,6 +92,33 @@ export function Dashboard({ odometer, fuel, services, reminders, onAddFuel, onAd
           </ul>
         </section>
       )}
+
+      <section className="card">
+        <h3>Key dates</h3>
+        {dated.length === 0 && <p className="empty">Add the dates of your inspection, insurance… to get reminded.</p>}
+        {dated.length > 0 && (
+          <ul className="list">
+            {dated.map((r) => (
+              <li key={r.reminder.id} className="list-item">
+                <div>
+                  <strong>{r.reminder.type}</strong>
+                  <span className="muted">{fmtDate(r.reminder.dueDate)}</span>
+                </div>
+                <ReminderBadge state={r.state} />
+              </li>
+            ))}
+          </ul>
+        )}
+        {missing.length > 0 && (
+          <div className="quick-actions">
+            {missing.map((k) => (
+              <button key={k.type} className="btn small" onClick={() => onAddReminder(k.type)}>
+                + {k.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="card">
         <ConsumptionChart segments={consumptionSegments(fuel)} />
