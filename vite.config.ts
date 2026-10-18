@@ -4,4 +4,6 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // In development, forward data requests to the local server (npm start).
+  server: { proxy: { '/api': 'http://localhost:8080' } },
 })

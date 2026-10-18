@@ -85,6 +85,22 @@ textarea {
   margin-bottom: 12px;
 }
 
+.title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sync {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.sync.offline {
+  color: var(--critical);
+  font-weight: 600;
+}
+
 .topbar select {
   max-width: 50%;
 }

@@ -8,9 +8,10 @@ interface Props {
   onEditVehicle: (v: Vehicle) => void;
   onDeleteVehicle: (v: Vehicle) => void;
   onImport: (d: AppData) => void;
+  serverMode: boolean;
 }
 
-export function SettingsView({ data, onAddVehicle, onEditVehicle, onDeleteVehicle, onImport }: Props) {
+export function SettingsView({ data, onAddVehicle, onEditVehicle, onDeleteVehicle, onImport, serverMode }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
 
@@ -71,7 +72,9 @@ export function SettingsView({ data, onAddVehicle, onEditVehicle, onDeleteVehicl
       <section className="card">
         <h3>Backup</h3>
         <p className="muted">
-          Your data is stored only in this browser. Export a backup regularly, or to move it to another device.
+          {serverMode
+            ? 'Your data is saved on the PC running the server (with a daily backup). You can also export a copy here.'
+            : 'Your data is stored only in this browser. Export a backup regularly, or to move it to another device.'}
         </p>
         <div className="quick-actions">
           <button className="btn" onClick={exportData}>

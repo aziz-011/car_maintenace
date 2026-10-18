@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "build:single": "npm run build && node scripts/build-single.mjs"
+    "build:single": "npm run build && node scripts/build-single.mjs",
+    "start": "node server/server.mjs",
+    "serve": "npm run build && npm start"
   },
   "dependencies": {
     "react": "^19.1.0",
@@ -28,5 +30,8 @@
     "typescript-eslint": "^8.30.1",
     "vite": "^6.3.5",
     "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

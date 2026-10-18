@@ -4,7 +4,7 @@ import { ReminderForm } from './components/ReminderForm';
 import { ServiceForm } from './components/ServiceForm';
 import { VehicleForm } from './components/VehicleForm';
 import { currentOdometer, reminderStatus } from './stats';
-import { today, useAppData } from './store';
+import { today, useAppData, type SyncStatus } from './store';
 import type { FuelEntry, Reminder, ServiceEntry, Vehicle } from './types';
 import { Dashboard } from './views/Dashboard';
 import { FuelView } from './views/FuelView';
@@ -29,13 +29,19 @@ type Dialog =
 
 const SELECTED_KEY = 'car-maintenance:selected';
 
+const STATUS_TEXT: Partial<Record<SyncStatus, string>> = {
+  synced: '✓ Saved',
+  saving: 'Saving…',
+  offline: '! Not saved: server unreachable',
+};
+
 /** Inserts or replaces an item by id. */
 function upsert<T extends { id: string }>(list: T[], item: T): T[] {
   return list.some((x) => x.id === item.id) ? list.map((x) => (x.id === item.id ? item : x)) : [...list, item];
 }
 
 export default function App() {
-  const { data, update, replace } = useAppData();
+  const { data, status, update, replace, retry } = useAppData();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
@@ -92,6 +98,24 @@ export default function App() {
     update((d) => ({ ...d, [key]: (d[key] as { id: string }[]).filter((x) => x.id !== id) }));
   };
 
+  if (status === 'loading' || status === 'unreachable') {
+    return (
+      <div className="welcome">
+        <h1>Car Maintenance</h1>
+        {status === 'loading' ? (
+          <p>Loading…</p>
+        ) : (
+          <>
+            <p>Can't reach the server. Check that it is running on your PC and that you're on the same network.</p>
+            <button className="btn primary" onClick={() => void retry()}>
+              Try again
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+
   if (!vehicle) {
     return (
       <div className="welcome">
@@ -108,7 +132,14 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>Car Maintenance</h1>
+        <div className="title">
+          <h1>Car Maintenance</h1>
+          {STATUS_TEXT[status] && (
+            <span className={`sync ${status}`} role="status">
+              {STATUS_TEXT[status]}
+            </span>
+          )}
+        </div>
         <select
           aria-label="Vehicle"
           value={vehicle.id}
@@ -176,6 +207,7 @@ export default function App() {
             onEditVehicle={(item) => setDialog({ kind: 'vehicle', item })}
             onDeleteVehicle={deleteVehicle}
             onImport={replace}
+            serverMode={status !== 'local'}
           />
         )}
       </main>
