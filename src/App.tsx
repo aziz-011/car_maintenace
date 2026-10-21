@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ConfirmHost } from './components/ConfirmHost';
+import { Icon } from './components/Icon';
 import { FuelForm } from './components/FuelForm';
 import { OdometerForm } from './components/OdometerForm';
 import { confirmAction } from './confirm';
@@ -16,11 +17,11 @@ import { ServicesView } from './views/ServicesView';
 import { SettingsView } from './views/SettingsView';
 
 const TABS = [
-  { id: 'dashboard', label: 'Overview', icon: '◎' },
-  { id: 'fuel', label: 'Fuel', icon: '⛽' },
-  { id: 'services', label: 'Services', icon: '🔧' },
-  { id: 'reminders', label: 'Reminders', icon: '⏰' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
+  { id: 'dashboard', label: 'Overview', icon: 'gauge' },
+  { id: 'fuel', label: 'Fuel', icon: 'fuel' },
+  { id: 'services', label: 'Services', icon: 'wrench' },
+  { id: 'reminders', label: 'Reminders', icon: 'bell' },
+  { id: 'settings', label: 'Settings', icon: 'gear' },
 ] as const;
 type Tab = (typeof TABS)[number]['id'];
 
@@ -144,7 +145,12 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="title">
-          <h1>Car Maintenance</h1>
+          <h1>
+            <span className="brand-mark" aria-hidden="true">
+              <Icon name="gauge" size={18} />
+            </span>
+            Car Maintenance
+          </h1>
           {STATUS_TEXT[status] && (
             <span className={`sync ${status}`} role="status">
               {STATUS_TEXT[status]}
@@ -167,11 +173,16 @@ export default function App() {
         </select>
       </header>
 
-      <nav className="tabs">
+      <nav className="tabs" aria-label="Sections">
         {TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
-            <span aria-hidden="true">{t.icon}</span>
-            {t.label}
+          <button
+            key={t.id}
+            className={tab === t.id ? 'active' : ''}
+            aria-current={tab === t.id ? 'page' : undefined}
+            onClick={() => setTab(t.id)}
+          >
+            <Icon name={t.icon} size={20} />
+            <span>{t.label}</span>
           </button>
         ))}
       </nav>
@@ -179,6 +190,8 @@ export default function App() {
       <main>
         {tab === 'dashboard' && (
           <Dashboard
+            vehicle={vehicle}
+            onOpenReminders={() => setTab('reminders')}
             odometer={odometer}
             fuel={fuel}
             services={services}
