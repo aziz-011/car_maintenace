@@ -700,3 +700,49 @@ input[type='checkbox'] {
   margin: 0;
   color: var(--text);
 }
+
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+}
+
+.copy-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.copy-row code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  user-select: all;
+}
+
+.list-item.solo {
+  border-top: none;
+  padding-top: 0;
+}
+
+.tile-value {
+  white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+  .tile-value {
+    font-size: 1.3rem;
+  }
+}

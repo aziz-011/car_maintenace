@@ -4,6 +4,9 @@ A small web app to track your car's fuel consumption, services and upcoming main
 
 ## Features
 
+- **Oil changes**: every car gets an oil change reminder (every 7,500 km by default). Log the oil change with its odometer reading and the next one is set from there.
+- **Odometer check-in**: add a reading once a week (Update odometer). The app works out how much you drive per week and the approximate date of the next oil change.
+- **Calendar**: key dates and the estimated oil change date as calendar events (subscribe link and .ics file on the home server; Google Calendar via Claude on claude.ai).
 - **Vehicles**: track several cars and switch between them. Pick from 78 makes and their models, or type your own.
 - **Fuel log**: date, odometer, liters, price and total (price/L and total fill each other in), station (suggestions from 60+ fuel brands), notes.
   Consumption (L/100 km) uses the full-tank method: fuel added between two full fill-ups divided by the distance driven. Partial fills are counted in the next full tank.
@@ -62,6 +65,8 @@ Press `Win + R`, type `shell:startup` and press Enter. In the folder that opens,
    - **Resend** (simplest): sign up at https://resend.com with the email you want reminders on, then **API Keys → Create API key**. Keep the From address as `onboarding@resend.dev` and set To to the email you signed up with.
    - **Brevo**: sign up at https://brevo.com, then **SMTP & API → API Keys**. Add your own address as a sender (Senders & IP → Senders) and use it as From.
 2. In the app: **Settings → Email reminders**, tick the box, paste the key, fill in To, then **Send test email**.
+
+Every Sunday evening (you can pick the day) you also get a **weekly check-in** asking for your odometer readings, with each car's km per week, the next oil change and what is coming up in the next 60 days.
 
 You get an email when a reminder is 30 days away (you can change this), again a week before, and when it is overdue, never twice for the same thing. Emails are sent by the PC running the server, between 8:00 and midnight, so it must be on. The API key is stored only on that PC.
 

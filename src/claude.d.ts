@@ -28,6 +28,7 @@ interface ClaudeDb {
 
 interface ClaudeUser {
   id(): Promise<string | null>;
+  isOwner(): Promise<boolean>;
 }
 
 interface ClaudeDownloads {

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { EmailSettings } from '../components/EmailSettings';
+import { calendarItems, toIcs } from '../calendar';
 import { confirmAction } from '../confirm';
 import { isAppData, today } from '../store';
 import type { AppData, Vehicle } from '../types';
@@ -16,6 +17,27 @@ interface Props {
 export function SettingsView({ data, onAddVehicle, onEditVehicle, onDeleteVehicle, onImport, backend }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
+  const [copied, setCopied] = useState(false);
+  const feedUrl = `${location.origin}/calendar.ics`;
+  const upcoming = calendarItems(data, today()).length;
+
+  const downloadIcs = () => {
+    const url = URL.createObjectURL(new Blob([toIcs(calendarItems(data, today()))], { type: 'text/calendar' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'car-maintenance.ics';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const copyFeed = async () => {
+    try {
+      await navigator.clipboard.writeText(feedUrl);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   const exportData = async () => {
     const filename = `car-maintenance-${today()}.json`;
@@ -90,11 +112,48 @@ export function SettingsView({ data, onAddVehicle, onEditVehicle, onDeleteVehicl
           <EmailSettings />
         ) : (
           <p className="muted">
-            Emails are sent by the home server (start-server.bat on your PC).{' '}
+            {backend === 'local' && <>Emails are sent by the home server (start-server.bat on your PC). </>}
             {backend === 'cloud'
-              ? 'This claude.ai version shows your reminders in the app but cannot send emails.'
+              ? 'On claude.ai, the weekly check-in and reminder emails are sent by a scheduled Claude task through your Gmail. Ask Claude to set it up if it isn\'t yet.'
               : "This single-file version can't send emails."}
           </p>
+        )}
+      </section>
+
+      <section className="card">
+        <h3>Calendar</h3>
+        <p className="muted">
+          {upcoming} date{upcoming === 1 ? '' : 's'} to put in your calendar: visite technique, insurance, road tax and the other
+          key dates, plus the estimated date of each oil change.
+        </p>
+        {backend === 'cloud' ? (
+          <p className="muted">
+            On claude.ai, Claude adds these to your Google Calendar and keeps them up to date with the weekly check-in. Ask
+            Claude to set it up if it isn't yet.
+          </p>
+        ) : (
+          <>
+            {backend === 'server' && (
+              <>
+                <p className="muted">
+                  Subscribe to this address in your phone's calendar so it always shows the current dates (on iPhone: Settings
+                  → Calendar → Accounts → Add Subscribed Calendar). It works while you're on your home Wi-Fi.
+                </p>
+                <div className="copy-row">
+                  <code>{feedUrl}</code>
+                  <button className="btn small" onClick={() => void copyFeed()}>
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </>
+            )}
+            <div className="quick-actions">
+              <button className="btn" onClick={downloadIcs} disabled={!upcoming}>
+                Download calendar file (.ics)
+              </button>
+            </div>
+            <p className="hint">Import the file in Google Calendar (Settings → Import), Outlook or Apple Calendar. Download it again after changes.</p>
+          </>
         )}
       </section>
 

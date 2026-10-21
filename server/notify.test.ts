@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain JS module used by the Node server
-import { collectAlerts, reminderEmail } from './notify.mjs';
+import { collectAlerts, reminderEmail, weeklyCheckinEmail } from './notify.mjs';
+import { toIcs } from '../src/calendar';
 // @ts-expect-error plain JS module used by the Node server
 import { parseAddress } from './email.mjs';
 
@@ -54,5 +55,41 @@ describe('parseAddress', () => {
   it('splits a name and an address', () => {
     expect(parseAddress('Car Maintenance <me@x.com>')).toEqual({ name: 'Car Maintenance', email: 'me@x.com' });
     expect(parseAddress('me@x.com')).toEqual({ email: 'me@x.com' });
+  });
+});
+
+describe('weeklyCheckinEmail', () => {
+  const car = { id: 'v', name: 'Golf', make: 'VW', model: 'Golf', initialOdometer: 120000 };
+  const base = {
+    vehicles: [car],
+    fuel: [],
+    services: [],
+    reminders: [{ id: 'o', vehicleId: 'v', type: 'Oil change', intervalKm: 7500, lastDate: '2026-09-01', lastOdometer: 120000 }],
+    readings: [
+      { id: 'r1', vehicleId: 'v', date: '2026-09-01', odometer: 120000 },
+      { id: 'r2', vehicleId: 'v', date: '2026-10-13', odometer: 122520 },
+    ],
+  };
+
+  it('asks for a reading when the last one is a week old, with the oil estimate', () => {
+    const mail = weeklyCheckinEmail(base, { today: '2026-10-25', appUrl: 'http://x' });
+    expect(mail.subject).toBe('Odometer check-in: Golf');
+    expect(mail.text).toContain('about 420 km a week');
+    expect(mail.text).toContain('Due in 4,980 km (around Jan 4, 2027)');
+  });
+
+  it('does not ask when readings are recent', () => {
+    expect(weeklyCheckinEmail(base, { today: '2026-10-15' }).subject).toBe('Car Maintenance: your week ahead');
+  });
+});
+
+describe('calendar', () => {
+  it('writes all-day events with stable ids and escaped text', () => {
+    const ics = toIcs([{ key: 'k1', title: 'Insurance – Golf, red', date: '2026-11-20', estimated: false, details: 'Due; soon' }]);
+    expect(ics).toContain('UID:k1@car-maintenance');
+    expect(ics).toContain('DTSTART;VALUE=DATE:20261120');
+    expect(ics).toContain('DTEND;VALUE=DATE:20261121');
+    expect(ics).toContain('SUMMARY:Insurance – Golf\\, red');
+    expect(ics.split('\r\n').every((l) => l.length < 75 || l.startsWith('SUMMARY') || l.startsWith('DESCRIPTION'))).toBe(true);
   });
 });

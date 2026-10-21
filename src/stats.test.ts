@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, consumptionSegments, fuelSummary, reminderStatus } from './stats';
+import { addMonths, consumptionSegments, drivingRate, fuelSummary, reminderStatus, vehicleOverview } from './stats';
+import { normalizeData } from './types';
 import type { FuelEntry, Reminder, ServiceEntry } from './types';
 
 const fuel = (id: string, odometer: number, liters: number, fullTank = true, totalCost = liters * 2): FuelEntry => ({
@@ -135,5 +136,60 @@ describe('reminderStatus with a fixed date', () => {
 
   it('uses a custom warning window', () => {
     expect(reminderStatus(insurance, [], 0, '2026-10-01', 90).state).toBe('soon');
+  });
+});
+
+describe('drivingRate', () => {
+  it('needs two values a week apart', () => {
+    expect(drivingRate([{ date: '2026-10-01', odometer: 1000 }])).toBeNull();
+    expect(drivingRate([{ date: '2026-10-01', odometer: 1000 }, { date: '2026-10-04', odometer: 1200 }])).toBeNull();
+  });
+
+  it('averages recent driving per day', () => {
+    const rate = drivingRate([
+      { date: '2026-01-01', odometer: 1000 }, // older than the window, ignored
+      { date: '2026-09-01', odometer: 20000 },
+      { date: '2026-09-29', odometer: 21400 },
+    ]);
+    expect(rate?.kmPerDay).toBeCloseTo(50);
+    expect(rate?.lastOdometer).toBe(21400);
+  });
+});
+
+describe('oil change estimate', () => {
+  const oil: Reminder = { id: 'o', vehicleId: 'v', type: 'Oil change', intervalKm: 7500, lastDate: '2026-09-01', lastOdometer: 20000 };
+  const driving = { kmPerDay: 50, lastDate: '2026-09-29', lastOdometer: 21400 };
+
+  it('estimates the date the distance will be reached', () => {
+    const s = reminderStatus(oil, [], 21400, '2026-09-29', 30, driving);
+    expect(s.dueOdometer).toBe(27500);
+    // 6,100 km left at 50 km a day = 122 days after the last reading.
+    expect(s.estimatedDate).toBe('2027-01-29');
+    expect(s.state).toBe('ok');
+  });
+
+  it('is due soon when the estimate is within two weeks', () => {
+    expect(reminderStatus(oil, [], 21400, '2027-01-20', 30, driving).state).toBe('soon');
+  });
+
+  it('resets from a service that changed the engine oil', () => {
+    const service: ServiceEntry = { id: 's', vehicleId: 'v', date: '2026-10-10', odometer: 22000, type: 'Periodic service', parts: ['Engine oil'], cost: 0 };
+    expect(reminderStatus(oil, [service], 22000, '2026-10-10').dueOdometer).toBe(29500);
+  });
+});
+
+describe('vehicleOverview', () => {
+  it('uses odometer readings for the odometer and the rate', () => {
+    const data = normalizeData({
+      vehicles: [{ id: 'v', name: 'Car', make: 'A', model: 'B', initialOdometer: 20000 }],
+      readings: [
+        { id: 'r1', vehicleId: 'v', date: '2026-09-01', odometer: 20000 },
+        { id: 'r2', vehicleId: 'v', date: '2026-09-15', odometer: 20700 },
+      ],
+    });
+    const o = vehicleOverview(data.vehicles[0], data, '2026-09-15');
+    expect(o.odometer).toBe(20700);
+    expect(o.driving?.kmPerDay).toBeCloseTo(50);
+    expect(o.lastOdometerDate).toBe('2026-09-15');
   });
 });

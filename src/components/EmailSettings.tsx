@@ -7,6 +7,8 @@ interface EmailConfig {
   to: string;
   daysBefore: number;
   weeklyBackup: boolean;
+  weeklyCheckin: boolean;
+  checkinDay: number;
   hasKey: boolean;
   keyHint: string;
 }
@@ -28,6 +30,8 @@ const HELP: Record<string, { signup: string; steps: string; from: string }> = {
     from: 'The From address must be a sender you verified in Brevo (Senders & IP → Senders). Your own Gmail works.',
   },
 };
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...init });
@@ -92,6 +96,13 @@ export function EmailSettings() {
       await save();
       await api('/api/email/test', { method: 'POST' });
       return `Test email sent to ${config.to}. Check your inbox (and spam folder).`;
+    });
+
+  const sendCheckin = () =>
+    run(async () => {
+      await save();
+      await api('/api/email/checkin', { method: 'POST' });
+      return `Check-in email sent to ${config.to}.`;
     });
 
   const checkNow = () =>
@@ -163,6 +174,23 @@ export function EmailSettings() {
       <p className="hint">You get an email then, again a week before, and when it is overdue. Distance reminders warn 1,000 km ahead.</p>
 
       <label className="check">
+        <input type="checkbox" checked={config.weeklyCheckin} onChange={(e) => set('weeklyCheckin', e.target.checked)} />
+        Weekly odometer check-in: ask for my readings and list what is coming up
+      </label>
+      {config.weeklyCheckin && (
+        <label>
+          Send it every
+          <select value={config.checkinDay} onChange={(e) => set('checkinDay', Number(e.target.value))}>
+            {DAYS.map((d, i) => (
+              <option key={d} value={i}>
+                {d} evening (from 18:00)
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      <label className="check">
         <input type="checkbox" checked={config.weeklyBackup} onChange={(e) => set('weeklyBackup', e.target.checked)} />
         Also email me a backup of my data every week
       </label>
@@ -177,6 +205,9 @@ export function EmailSettings() {
         </button>
         <button type="button" className="btn" disabled={busy || !config.enabled} onClick={checkNow}>
           Check now
+        </button>
+        <button type="button" className="btn" disabled={busy || (!config.hasKey && !apiKey) || !config.to} onClick={sendCheckin}>
+          Send check-in now
         </button>
       </div>
       <p className="hint">Emails are sent by the PC running the server, so it needs to be on. The API key stays on that PC.</p>

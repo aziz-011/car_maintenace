@@ -7,8 +7,9 @@ import { homedir, networkInterfaces } from 'node:os';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sendEmail, PROVIDERS } from './email.mjs';
-import { collectAlerts, reminderEmail } from './notify.mjs';
-import { applyOps, emptyData, isAppData } from './ops.mjs';
+import { collectAlerts, reminderEmail, weeklyCheckinEmail } from './notify.mjs';
+import { calendarItems, toIcs } from '../src/calendar.ts';
+import { applyOps, emptyData, isAppData, normalizeData } from './ops.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DIST = join(ROOT, 'dist');
@@ -26,6 +27,8 @@ const KEEP_BACKUPS = 60;
 const CHECK_EVERY_MS = 60 * 60 * 1000;
 /** Emails are only sent from this hour on (local time), so none arrive at night. */
 const SEND_FROM_HOUR = 8;
+/** The weekly odometer check-in goes out on the chosen day from this hour. */
+const CHECKIN_HOUR = 18;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -46,13 +49,16 @@ const DEFAULT_EMAIL = {
   to: '',
   daysBefore: 30,
   weeklyBackup: true,
+  weeklyCheckin: true,
+  /** Day of the week for the check-in, 0 = Sunday. */
+  checkinDay: 0,
 };
 
 /** { version, updatedAt, data } — version increases on every change. */
 let store = { version: 0, updatedAt: null, data: emptyData() };
 let settings = { email: { ...DEFAULT_EMAIL } };
-/** { sent: { [alertKey]: isoDate }, lastBackupEmail: isoDate | null } */
-let notifyState = { sent: {}, lastBackupEmail: null };
+/** { sent: { [alertKey]: isoDate }, lastBackupEmail: isoDate | null, lastCheckin: 'YYYY-MM-DD' | null } */
+let notifyState = { sent: {}, lastBackupEmail: null, lastCheckin: null };
 
 async function readJson(file, fallback) {
   return existsSync(file) ? JSON.parse(await readFile(file, 'utf8')) : fallback;
@@ -77,7 +83,7 @@ async function load() {
   const parsed = await readJson(DATA_FILE, null);
   if (parsed) {
     if (!isAppData(parsed.data)) throw new Error(`${DATA_FILE} is not valid car data`);
-    store = parsed;
+    store = { ...parsed, data: normalizeData(parsed.data) };
   }
   settings = { email: { ...DEFAULT_EMAIL, ...(await readJson(SETTINGS_FILE, {})).email } };
   notifyState = { ...notifyState, ...(await readJson(NOTIFY_FILE, {})) };
@@ -123,6 +129,8 @@ function updateSettings(body) {
   if (e.provider !== undefined && !PROVIDERS[e.provider]) throw new Error('Unknown provider');
   const days = e.daysBefore === undefined ? settings.email.daysBefore : Number(e.daysBefore);
   if (!Number.isInteger(days) || days < 1 || days > 365) throw new Error('Days before must be between 1 and 365');
+  const day = e.checkinDay === undefined ? settings.email.checkinDay : Number(e.checkinDay);
+  if (!Number.isInteger(day) || day < 0 || day > 6) throw new Error('Check-in day must be 0 (Sunday) to 6 (Saturday)');
   const str = (v, old) => (typeof v === 'string' ? v.trim() : old);
   settings = {
     email: {
@@ -134,6 +142,8 @@ function updateSettings(body) {
       to: str(e.to, settings.email.to),
       daysBefore: days,
       weeklyBackup: e.weeklyBackup === undefined ? settings.email.weeklyBackup : !!e.weeklyBackup,
+      weeklyCheckin: e.weeklyCheckin === undefined ? settings.email.weeklyCheckin : !!e.weeklyCheckin,
+      checkinDay: day,
     },
   };
   return queueWrite(() => writeJson(SETTINGS_FILE, settings));
@@ -160,7 +170,8 @@ async function runEmailChecks({ force = false } = {}) {
   const email = settings.email;
   if (!email.enabled || !email.apiKey || !email.to) return { skipped: 'Email reminders are off' };
   if (!force && new Date().getHours() < SEND_FROM_HOUR) return { skipped: 'Too early in the day' };
-  const result = { reminders: 0, backup: false };
+  const result = { reminders: 0, backup: false, checkin: false };
+  const now = new Date();
 
   const alerts = collectAlerts(store.data, { today: localDate(), soonDays: email.daysBefore, sent: notifyState.sent });
   const fresh = alerts.filter((a) => a.isNew);
@@ -183,17 +194,25 @@ async function runEmailChecks({ force = false } = {}) {
     result.backup = true;
   }
 
+  const checkinDue = now.getDay() === email.checkinDay && now.getHours() >= CHECKIN_HOUR && notifyState.lastCheckin !== localDate();
+  if (email.weeklyCheckin && store.data.vehicles.length && checkinDue) {
+    await sendEmail(email, weeklyCheckinEmail(store.data, { today: localDate(), appUrl: appUrl() }));
+    notifyState.lastCheckin = localDate();
+    result.checkin = true;
+  }
+
   // Forget alerts older than a year so the file does not grow forever.
   const yearAgo = Date.now() - 365 * 86_400_000;
   for (const [k, v] of Object.entries(notifyState.sent)) if (Date.parse(v) < yearAgo) delete notifyState.sent[k];
-  if (result.reminders || result.backup) await queueWrite(() => writeJson(NOTIFY_FILE, notifyState));
+  if (result.reminders || result.backup || result.checkin) await queueWrite(() => writeJson(NOTIFY_FILE, notifyState));
   return result;
 }
 
 async function scheduledCheck() {
   try {
     const r = await runEmailChecks();
-    if (r.reminders || r.backup) console.log(`${new Date().toLocaleString()}: emailed ${r.reminders} reminder(s)${r.backup ? ' and the weekly backup' : ''}.`);
+    if (r.reminders || r.backup || r.checkin)
+      console.log(`${new Date().toLocaleString()}: emailed ${r.reminders} reminder(s)${r.backup ? ', the weekly backup' : ''}${r.checkin ? ', the weekly check-in' : ''}.`);
   } catch (e) {
     console.error(`${new Date().toLocaleString()}: could not send email: ${e.message}`);
   }
@@ -240,6 +259,11 @@ const routes = {
     return [200, { ok: true }];
   },
   'POST /api/email/check': async () => [200, await runEmailChecks({ force: true })],
+  // Sends this week's check-in now, as a preview; it does not change the weekly schedule.
+  'POST /api/email/checkin': async () => {
+    await sendEmail(settings.email, weeklyCheckinEmail(store.data, { today: localDate(), appUrl: appUrl() }));
+    return [200, { ok: true }];
+  },
 };
 
 async function handleApi(req, res, path) {
@@ -275,6 +299,11 @@ async function serveStatic(res, path) {
 const server = createServer(async (req, res) => {
   const path = new URL(req.url ?? '/', 'http://localhost').pathname;
   try {
+    // Calendar apps subscribe to this URL; it always reflects the current data.
+    if (path === '/calendar.ics') {
+      res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'no-cache' });
+      return res.end(toIcs(calendarItems(store.data, localDate())));
+    }
     if (path.startsWith('/api/')) await handleApi(req, res, path);
     else await serveStatic(res, path);
   } catch (e) {

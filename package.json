@@ -12,7 +12,7 @@
     "build:single": "npm run build && node scripts/build-single.mjs",
     "start": "node dist-server/server.mjs",
     "serve": "npm run build && npm start",
-    "build:server": "esbuild server/server.mjs --bundle --platform=node --format=esm --target=node18 --outfile=dist-server/server.mjs --log-level=warning",
+    "build:server": "esbuild server/server.mjs server/weekly-report.mjs --bundle --platform=node --format=esm --target=node18 --outdir=dist-server --log-level=warning --out-extension:.js=.mjs",
     "build:claude": "npm run build && node scripts/build-claude.mjs"
   },
   "dependencies": {

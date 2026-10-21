@@ -1,8 +1,10 @@
-import type { AppData } from './types';
+import { emptyData, normalizeData, type AppData } from './types';
+
+export { isAppData } from './types';
 
 const STORAGE_KEY = 'car-maintenance:v1';
 
-export const EMPTY: AppData = { vehicles: [], fuel: [], services: [], reminders: [] };
+export const EMPTY: AppData = emptyData();
 
 export function newId(): string {
   // randomUUID needs a secure context, which a file opened from disk or a LAN address is not.
@@ -18,7 +20,7 @@ export function today(): string {
 export function loadLocal(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...EMPTY, ...JSON.parse(raw) } : EMPTY;
+    return raw ? normalizeData(JSON.parse(raw)) : EMPTY;
   } catch {
     return EMPTY;
   }
@@ -32,11 +34,6 @@ export function saveLocal(data: AppData) {
   }
 }
 
-export function isAppData(value: unknown): value is AppData {
-  if (!value || typeof value !== 'object') return false;
-  const v = value as Record<string, unknown>;
-  return ['vehicles', 'fuel', 'services', 'reminders'].every((k) => Array.isArray(v[k]));
-}
 
 /**
  * - local: no server (e.g. the single HTML file); data lives in this browser.

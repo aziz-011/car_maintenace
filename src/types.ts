@@ -108,9 +108,43 @@ export interface Reminder {
   lastOdometer: number;
 }
 
+/** An odometer reading on its own, e.g. the weekly check-in. */
+export interface OdometerReading {
+  id: string;
+  vehicleId: string;
+  date: string;
+  odometer: number;
+}
+
 export interface AppData {
   vehicles: Vehicle[];
   fuel: FuelEntry[];
   services: ServiceEntry[];
   reminders: Reminder[];
+  readings: OdometerReading[];
+}
+
+/** Every kind of record, in one place for storage and sync code. */
+export const COLLECTIONS = ['vehicles', 'fuel', 'services', 'reminders', 'readings'] as const;
+
+/** Oil change interval suggested for new cars. */
+export const DEFAULT_OIL_INTERVAL_KM = 7500;
+
+export function emptyData(): AppData {
+  return { vehicles: [], fuel: [], services: [], reminders: [], readings: [] };
+}
+
+/**
+ * True for data and backups from any version: collections added later
+ * (like readings) may be missing and are filled in by normalizeData.
+ */
+export function isAppData(value: unknown): value is AppData {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  const required = ['vehicles', 'fuel', 'services', 'reminders'];
+  return COLLECTIONS.every((k) => (required.includes(k) ? Array.isArray(v[k]) : v[k] === undefined || Array.isArray(v[k])));
+}
+
+export function normalizeData(value: Partial<AppData>): AppData {
+  return Object.fromEntries(COLLECTIONS.map((k) => [k, value[k] ?? []])) as unknown as AppData;
 }

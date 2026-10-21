@@ -1,7 +1,6 @@
-import type { AppData } from './types';
+import { COLLECTIONS, type AppData } from './types';
 
 type Collection = keyof AppData;
-const COLLECTIONS: Collection[] = ['vehicles', 'fuel', 'services', 'reminders'];
 
 export type Op =
   | { kind: 'upsert'; collection: Collection; item: { id: string } }
@@ -15,7 +14,7 @@ export type Op =
 export function diffOps(prev: AppData, next: AppData): Op[] {
   const ops: Op[] = [];
   for (const collection of COLLECTIONS) {
-    const before = new Map<string, unknown>(prev[collection].map((x) => [x.id, x]));
+    const before = new Map<string, unknown>((prev[collection] ?? []).map((x) => [x.id, x]));
     const after = new Set<string>();
     for (const item of next[collection]) {
       after.add(item.id);

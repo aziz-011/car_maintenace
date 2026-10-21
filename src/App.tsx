@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ConfirmHost } from './components/ConfirmHost';
 import { FuelForm } from './components/FuelForm';
+import { OdometerForm } from './components/OdometerForm';
 import { confirmAction } from './confirm';
 import { ReminderForm } from './components/ReminderForm';
 import { ServiceForm } from './components/ServiceForm';
 import { VehicleForm } from './components/VehicleForm';
-import { addMonths, currentOdometer, reminderStatus } from './stats';
-import { today, useAppData, type SyncStatus } from './store';
-import type { FuelEntry, Reminder, ServiceEntry, Vehicle } from './types';
+import { addMonths, vehicleOverview } from './stats';
+import { newId, today, useAppData, type SyncStatus } from './store';
+import { normalizeData, type AppData, type FuelEntry, type Reminder, type ServiceEntry, type Vehicle } from './types';
 import { Dashboard } from './views/Dashboard';
 import { FuelView } from './views/FuelView';
 import { RemindersView } from './views/RemindersView';
@@ -27,7 +28,8 @@ type Dialog =
   | { kind: 'vehicle'; item?: Vehicle }
   | { kind: 'fuel'; item?: FuelEntry }
   | { kind: 'service'; item?: ServiceEntry }
-  | { kind: 'reminder'; item?: Reminder; initialType?: string };
+  | { kind: 'reminder'; item?: Reminder; initialType?: string }
+  | { kind: 'odometer' };
 
 const SELECTED_KEY = 'car-maintenance:selected';
 
@@ -40,6 +42,10 @@ const STATUS_TEXT: Partial<Record<SyncStatus, string>> = {
 /** Inserts or replaces an item by id. */
 function upsert<T extends { id: string }>(list: T[], item: T): T[] {
   return list.some((x) => x.id === item.id) ? list.map((x) => (x.id === item.id ? item : x)) : [...list, item];
+}
+
+function oilReminder(vehicleId: string, intervalKm: number, odometer: number): Reminder {
+  return { id: newId(), vehicleId, type: 'Oil change', intervalKm, lastDate: today(), lastOdometer: odometer };
 }
 
 export default function App() {
@@ -69,18 +75,20 @@ export default function App() {
     () => data.services.filter((s) => s.vehicleId === vehicle?.id),
     [data.services, vehicle],
   );
-  const odometer = vehicle ? currentOdometer(vehicle.initialOdometer, fuel, services) : 0;
-  const statuses = useMemo(() => {
-    const now = today();
-    return data.reminders
-      .filter((r) => r.vehicleId === vehicle?.id)
-      .map((r) => reminderStatus(r, services, odometer, now));
-  }, [data.reminders, vehicle, services, odometer]);
+  const readings = useMemo(() => data.readings.filter((r) => r.vehicleId === vehicle?.id), [data.readings, vehicle]);
+  const overview = useMemo(() => (vehicle ? vehicleOverview(vehicle, data, today()) : null), [vehicle, data]);
+  const odometer = overview?.odometer ?? 0;
+  const statuses = useMemo(() => overview?.statuses ?? [], [overview]);
 
   const close = () => setDialog(null);
 
-  const saveVehicle = (v: Vehicle) => {
-    update((d) => ({ ...d, vehicles: upsert(d.vehicles, v) }));
+  const saveVehicle = (v: Vehicle, oilIntervalKm?: number) => {
+    update((d) => ({
+      ...d,
+      vehicles: upsert(d.vehicles, v),
+      // A new car starts its oil change reminder from the odometer it was added with.
+      reminders: oilIntervalKm ? [...d.reminders, oilReminder(v.id, oilIntervalKm, v.initialOdometer)] : d.reminders,
+    }));
     setSelectedId(v.id);
     close();
   };
@@ -92,10 +100,11 @@ export default function App() {
       fuel: d.fuel.filter((x) => x.vehicleId !== v.id),
       services: d.services.filter((x) => x.vehicleId !== v.id),
       reminders: d.reminders.filter((x) => x.vehicleId !== v.id),
+      readings: d.readings.filter((x) => x.vehicleId !== v.id),
     }));
   };
 
-  const remove = async <K extends 'fuel' | 'services' | 'reminders'>(key: K, id: string) => {
+  const remove = async <K extends 'fuel' | 'services' | 'reminders' | 'readings'>(key: K, id: string) => {
     if (!(await confirmAction('Delete this entry?'))) return;
     update((d) => ({ ...d, [key]: (d[key] as { id: string }[]).filter((x) => x.id !== id) }));
   };
@@ -177,6 +186,10 @@ export default function App() {
             onAddFuel={() => setDialog({ kind: 'fuel' })}
             onAddService={() => setDialog({ kind: 'service' })}
             onAddReminder={(initialType) => setDialog({ kind: 'reminder', initialType })}
+            onUpdateOdometer={() => setDialog({ kind: 'odometer' })}
+            onAddOilReminder={(km) => update((d) => ({ ...d, reminders: [...d.reminders, oilReminder(vehicle.id, km, odometer)] }))}
+            driving={overview?.driving ?? null}
+            lastOdometerDate={overview?.lastOdometerDate}
           />
         )}
         {tab === 'fuel' && (
@@ -185,6 +198,9 @@ export default function App() {
             onAdd={() => setDialog({ kind: 'fuel' })}
             onEdit={(item) => setDialog({ kind: 'fuel', item })}
             onDelete={(e) => remove('fuel', e.id)}
+            readings={readings}
+            onAddReading={() => setDialog({ kind: 'odometer' })}
+            onDeleteReading={(r) => remove('readings', r.id)}
           />
         )}
         {tab === 'services' && (
@@ -211,7 +227,7 @@ export default function App() {
             onAddVehicle={() => setDialog({ kind: 'vehicle' })}
             onEditVehicle={(item) => setDialog({ kind: 'vehicle', item })}
             onDeleteVehicle={deleteVehicle}
-            onImport={replace}
+            onImport={(d: AppData) => replace(normalizeData(d))}
             backend={backend}
           />
         )}
@@ -225,6 +241,17 @@ export default function App() {
           minOdometer={odometer}
           onSave={(e) => {
             update((d) => ({ ...d, fuel: upsert(d.fuel, e) }));
+            close();
+          }}
+          onClose={close}
+        />
+      )}
+      {dialog?.kind === 'odometer' && (
+        <OdometerForm
+          vehicleId={vehicle.id}
+          currentOdometer={odometer}
+          onSave={(r) => {
+            update((d) => ({ ...d, readings: [...d.readings, r] }));
             close();
           }}
           onClose={close}

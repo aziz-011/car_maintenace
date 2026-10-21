@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { diffOps, type Op } from './sync';
-import type { AppData } from './types';
+import { COLLECTIONS, emptyData, type AppData } from './types';
 import { EMPTY, loadLocal, saveLocal, type SyncStatus } from './storeShared';
 
 type Collection = keyof AppData;
-const COLLECTIONS: Collection[] = ['vehicles', 'fuel', 'services', 'reminders'];
+
+/**
+ * Where the records live. Declared owner-only on publish
+ * (`rules: [{path: "records", read: "owner", write: "owner"}]`), so only the
+ * page's owner can read or change them, and Claude can read them for the
+ * weekly email acting as that owner.
+ */
+export const RECORDS = 'records';
 
 /** One document per record, so edits on two devices touch different documents. */
 const docId = (collection: Collection, id: string) => `${collection}~${id}`;
@@ -21,10 +28,9 @@ function isRow(value: unknown): value is Row {
 }
 
 /**
- * App data kept in the claude.ai page's database, in the viewer's private
- * area (`data/users/<id>`), so it follows their account across devices.
- * Falls back to this browser's storage when the database is unavailable,
- * e.g. when signed out.
+ * App data kept in the claude.ai page's database, so it follows the owner's
+ * account across devices. Anyone else who opens the page, and a signed-out
+ * visit, uses this browser's storage instead.
  */
 export function useCloudData() {
   const [data, setData] = useState<AppData>(EMPTY);
@@ -52,7 +58,7 @@ export function useCloudData() {
         if (isRow(body)) rows.push(body);
       }
       rows.sort((a, b) => a.order - b.order);
-      const next: AppData = { vehicles: [], fuel: [], services: [], reminders: [] };
+      const next = emptyData();
       order.current = new Map();
       for (const row of rows) {
         // Snapshots are frozen; the app treats records as plain values.
@@ -69,15 +75,30 @@ export function useCloudData() {
     let cancelled = false;
     void (async () => {
       const [db, user] = await Promise.all([window.claude!.use('db'), window.claude!.use('user')]);
-      const uid = await user?.id();
+      const [uid, isOwner] = await Promise.all([user?.id(), user?.isOwner()]);
       if (cancelled) return;
-      if (!db || !uid) {
+      if (!db || !isOwner) {
         setBackend('local');
         commit(loadLocal());
         setStatus('local');
         return;
       }
-      col.current = db.collection(`data/users/${uid}`);
+      col.current = db.collection(RECORDS);
+      // The first claude.ai version kept records in the owner's private area; copy them over once.
+      if (uid) {
+        try {
+          const [current, old] = await Promise.all([col.current.get(), db.collection(`data/users/${uid}`).get()]);
+          if (current.docs.length === 0 && old.docs.length > 0) {
+            for (const d of old.docs) {
+              const body = d.data();
+              if (isRow(body)) await col.current.doc(d.id).set({ ...body });
+            }
+          }
+        } catch (e) {
+          console.error('Could not copy earlier records', e);
+        }
+      }
+      if (cancelled) return;
       unsubscribe = col.current.onSnapshot(
         (snap) => {
           // While our own writes are in flight the snapshot can lag behind them.

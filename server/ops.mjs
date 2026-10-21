@@ -1,14 +1,7 @@
 // Applies client changes to the stored data. Kept free of I/O so it can be unit tested.
+import { COLLECTIONS, emptyData, isAppData, normalizeData } from '../src/types.ts';
 
-export const COLLECTIONS = ['vehicles', 'fuel', 'services', 'reminders'];
-
-export function emptyData() {
-  return { vehicles: [], fuel: [], services: [], reminders: [] };
-}
-
-export function isAppData(value) {
-  return !!value && typeof value === 'object' && COLLECTIONS.every((k) => Array.isArray(value[k]));
-}
+export { COLLECTIONS, emptyData, isAppData, normalizeData };
 
 /**
  * Returns a new data object with the operations applied, or throws on an invalid one.
@@ -16,11 +9,11 @@ export function isAppData(value) {
  */
 export function applyOps(data, ops) {
   if (!Array.isArray(ops)) throw new Error('ops must be an array');
-  let next = { ...data };
+  let next = normalizeData(data);
   for (const op of ops) {
     if (op?.kind === 'replace') {
       if (!isAppData(op.data)) throw new Error('invalid data');
-      next = Object.fromEntries(COLLECTIONS.map((k) => [k, op.data[k]]));
+      next = normalizeData(op.data);
       continue;
     }
     if (!COLLECTIONS.includes(op?.collection)) throw new Error('invalid collection');

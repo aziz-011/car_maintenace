@@ -1,13 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { CAR_MAKES, modelsFor } from '../data/vehicles';
 import { newId } from '../store';
-import type { Vehicle } from '../types';
+import { DEFAULT_OIL_INTERVAL_KM, type Vehicle } from '../types';
 import { Modal } from './Modal';
 import { SelectOrOther } from './SelectOrOther';
 
 interface Props {
   vehicle?: Vehicle;
-  onSave: (v: Vehicle) => void;
+  /** oilIntervalKm is set for a new car, to create its oil change reminder. */
+  onSave: (v: Vehicle, oilIntervalKm?: number) => void;
   onClose: () => void;
 }
 
@@ -18,6 +19,7 @@ export function VehicleForm({ vehicle, onSave, onClose }: Props) {
   const [year, setYear] = useState(vehicle?.year?.toString() ?? '');
   const [plate, setPlate] = useState(vehicle?.plate ?? '');
   const [odometer, setOdometer] = useState(vehicle?.initialOdometer.toString() ?? '');
+  const [oilKm, setOilKm] = useState(DEFAULT_OIL_INTERVAL_KM.toString());
 
   // A model from the previous make's list no longer applies.
   const changeMake = (value: string) => {
@@ -27,15 +29,18 @@ export function VehicleForm({ vehicle, onSave, onClose }: Props) {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    onSave({
-      id: vehicle?.id ?? newId(),
-      name: name.trim() || `${make} ${model}`.trim(),
-      make: make.trim(),
-      model: model.trim(),
-      year: year ? Number(year) : undefined,
-      plate: plate.trim() || undefined,
-      initialOdometer: Number(odometer) || 0,
-    });
+    onSave(
+      {
+        id: vehicle?.id ?? newId(),
+        name: name.trim() || `${make} ${model}`.trim(),
+        make: make.trim(),
+        model: model.trim(),
+        year: year ? Number(year) : undefined,
+        plate: plate.trim() || undefined,
+        initialOdometer: Number(odometer) || 0,
+      },
+      vehicle ? undefined : Number(oilKm) || undefined,
+    );
   };
 
   return (
@@ -82,6 +87,15 @@ export function VehicleForm({ vehicle, onSave, onClose }: Props) {
           Current odometer (km)
           <input type="number" min="0" required value={odometer} onChange={(e) => setOdometer(e.target.value)} />
         </label>
+        {!vehicle && (
+          <label>
+            Oil change every (km)
+            <input type="number" min="1000" step="500" value={oilKm} onChange={(e) => setOilKm(e.target.value)} />
+            <span className="hint">
+              The next oil change is counted from the odometer above. Leave empty for no reminder.
+            </span>
+          </label>
+        )}
         <div className="actions">
           <button type="button" className="btn ghost" onClick={onClose}>
             Cancel
