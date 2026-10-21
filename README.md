@@ -15,6 +15,12 @@ A small web app to track your car's fuel consumption, services and upcoming main
 
 Works on desktop and phone (bottom tab bar on small screens).
 
+## Use it on claude.ai (no PC needed)
+
+Open **https://claude.ai/artifact/D1eAVvzCYyEhfd9KmmMVQB** while signed in to Claude, on any device. Your data is saved privately in your Claude account, so it is the same on your phone and your PC. Email reminders need the home server below; everything else works on claude.ai.
+
+To update that page after changing the code: `npm run build:claude`, then publish `dist-claude/car-maintenance.html` to the same artifact.
+
 ## Run it on your PC for your whole network
 
 The app runs on your PC and you open it from any phone, tablet or computer on the same Wi-Fi. All devices share the same data, saved in a file on the PC.
@@ -87,6 +93,7 @@ npm test         # unit tests (consumption and reminder logic)
 npm run lint
 npm run build    # production build in dist/
 npm run build:single  # standalone car-maintenance.html (open it directly, no server)
+npm run build:claude  # the claude.ai version in dist-claude/
 npm start        # run the home server (built to dist-server/ by npm run build)
 ```
 

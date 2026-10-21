@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { EmailSettings } from '../components/EmailSettings';
+import { confirmAction } from '../confirm';
 import { isAppData, today } from '../store';
 import type { AppData, Vehicle } from '../types';
 
@@ -9,19 +10,32 @@ interface Props {
   onEditVehicle: (v: Vehicle) => void;
   onDeleteVehicle: (v: Vehicle) => void;
   onImport: (d: AppData) => void;
-  serverMode: boolean;
+  backend: 'server' | 'cloud' | 'local';
 }
 
-export function SettingsView({ data, onAddVehicle, onEditVehicle, onDeleteVehicle, onImport, serverMode }: Props) {
+export function SettingsView({ data, onAddVehicle, onEditVehicle, onDeleteVehicle, onImport, backend }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
 
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const exportData = async () => {
+    const filename = `car-maintenance-${today()}.json`;
+    const json = JSON.stringify(data, null, 2);
+    // claude.ai pages cannot start downloads themselves; they ask the viewer to save.
+    const downloads = backend === 'cloud' ? await window.claude?.use('downloads') : null;
+    if (downloads) {
+      try {
+        await downloads.save({ filename, data: json });
+        setMessage('Backup saved.');
+      } catch (e) {
+        if ((e as { code?: string }).code !== 'declined') setMessage('Could not save the backup here.');
+      }
+      return;
+    }
+    const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `car-maintenance-${today()}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -30,7 +44,7 @@ export function SettingsView({ data, onAddVehicle, onEditVehicle, onDeleteVehicl
     try {
       const parsed: unknown = JSON.parse(await file.text());
       if (!isAppData(parsed)) throw new Error('invalid');
-      if (!confirm('Replace all current data with this backup?')) return;
+      if (!(await confirmAction('Replace all current data with this backup? This cannot be undone.', 'Replace'))) return;
       onImport(parsed);
       setMessage('Backup restored.');
     } catch {
@@ -72,22 +86,33 @@ export function SettingsView({ data, onAddVehicle, onEditVehicle, onDeleteVehicl
 
       <section className="card">
         <h3>Email reminders</h3>
-        {serverMode ? (
+        {backend === 'server' ? (
           <EmailSettings />
         ) : (
-          <p className="muted">Email reminders need the home server (start-server.bat). This single-file version can't send emails.</p>
+          <p className="muted">
+            Emails are sent by the home server (start-server.bat on your PC).{' '}
+            {backend === 'cloud'
+              ? 'This claude.ai version shows your reminders in the app but cannot send emails.'
+              : "This single-file version can't send emails."}
+          </p>
         )}
       </section>
 
       <section className="card">
         <h3>Backup</h3>
         <p className="muted">
-          {serverMode
-            ? 'Your data is saved on the PC running the server, in the CarMaintenance folder of your user folder, with a daily backup. You can also export a copy here.'
-            : 'Your data is stored only in this browser. Export a backup regularly, or to move it to another device.'}
+          {
+            {
+              server:
+                'Your data is saved on the PC running the server, in the CarMaintenance folder of your user folder, with a daily backup. You can also export a copy here.',
+              cloud:
+                'Your data is saved in your Claude account, privately, and is the same on every device where you are signed in. Export a copy now and then to keep your own backup.',
+              local: 'Your data is stored only in this browser. Export a backup regularly, or to move it to another device.',
+            }[backend]
+          }
         </p>
         <div className="quick-actions">
-          <button className="btn" onClick={exportData}>
+          <button className="btn" onClick={() => void exportData()}>
             Export JSON
           </button>
           <button className="btn" onClick={() => fileRef.current?.click()}>

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ConfirmHost } from './components/ConfirmHost';
 import { FuelForm } from './components/FuelForm';
+import { confirmAction } from './confirm';
 import { ReminderForm } from './components/ReminderForm';
 import { ServiceForm } from './components/ServiceForm';
 import { VehicleForm } from './components/VehicleForm';
@@ -32,7 +34,7 @@ const SELECTED_KEY = 'car-maintenance:selected';
 const STATUS_TEXT: Partial<Record<SyncStatus, string>> = {
   synced: '✓ Saved',
   saving: 'Saving…',
-  offline: '! Not saved: server unreachable',
+  offline: '! Not saved yet: connection problem',
 };
 
 /** Inserts or replaces an item by id. */
@@ -41,7 +43,7 @@ function upsert<T extends { id: string }>(list: T[], item: T): T[] {
 }
 
 export default function App() {
-  const { data, status, update, replace, retry } = useAppData();
+  const { data, status, backend, update, replace, retry } = useAppData();
   const [tab, setTab] = useState<Tab>('dashboard');
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
@@ -83,8 +85,8 @@ export default function App() {
     close();
   };
 
-  const deleteVehicle = (v: Vehicle) => {
-    if (!confirm(`Delete ${v.name} and all of its records?`)) return;
+  const deleteVehicle = async (v: Vehicle) => {
+    if (!(await confirmAction(`Delete ${v.name} and all of its fill-ups, services and reminders?`))) return;
     update((d) => ({
       vehicles: d.vehicles.filter((x) => x.id !== v.id),
       fuel: d.fuel.filter((x) => x.vehicleId !== v.id),
@@ -93,8 +95,8 @@ export default function App() {
     }));
   };
 
-  const remove = <K extends 'fuel' | 'services' | 'reminders'>(key: K, id: string) => {
-    if (!confirm('Delete this entry?')) return;
+  const remove = async <K extends 'fuel' | 'services' | 'reminders'>(key: K, id: string) => {
+    if (!(await confirmAction('Delete this entry?'))) return;
     update((d) => ({ ...d, [key]: (d[key] as { id: string }[]).filter((x) => x.id !== id) }));
   };
 
@@ -210,7 +212,7 @@ export default function App() {
             onEditVehicle={(item) => setDialog({ kind: 'vehicle', item })}
             onDeleteVehicle={deleteVehicle}
             onImport={replace}
-            serverMode={status !== 'local'}
+            backend={backend}
           />
         )}
       </main>
@@ -253,6 +255,7 @@ export default function App() {
           onClose={close}
         />
       )}
+      <ConfirmHost />
     </div>
   );
 }

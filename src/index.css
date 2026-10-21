@@ -20,8 +20,9 @@
   background: var(--bg);
 }
 
+/* Dark theme: follows the system, unless a host (claude.ai) sets data-theme. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #111110;
     --surface: #1a1a19;
     --border: #2e2e2c;
@@ -34,12 +35,27 @@
   }
 }
 
+:root[data-theme='dark'] {
+  --bg: #111110;
+  --surface: #1a1a19;
+  --border: #2e2e2c;
+  --text: #f0efec;
+  --text-2: #c3c2b7;
+  --muted: #8f8e88;
+  --accent: #3987e5;
+  --grid: #2a2a28;
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  /* Use the app's own type settings even when a host page sets body defaults. */
+  font: inherit;
+  color: var(--text);
   background: var(--bg);
 }
 
@@ -74,7 +90,9 @@ textarea {
 .app {
   max-width: 880px;
   margin: 0 auto;
-  padding: 16px 16px 96px;
+  padding-block: 16px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 
 .topbar {
@@ -141,7 +159,9 @@ textarea {
     background: var(--surface);
     border-top: 1px solid var(--border);
     border-bottom: none;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
 
   .tabs button {
@@ -190,7 +210,8 @@ textarea {
 .welcome {
   max-width: 420px;
   margin: 15vh auto 0;
-  padding: 0 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
   text-align: center;
 }
 
@@ -452,7 +473,8 @@ th {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px))
+    max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   background: rgb(0 0 0 / 0.45);
 }
 
@@ -666,4 +688,15 @@ input[type='checkbox'] {
 
 .tooltip span {
   color: var(--text-2);
+}
+
+.btn.danger {
+  background: var(--critical);
+  border-color: var(--critical);
+  color: #fff;
+}
+
+.confirm-text {
+  margin: 0;
+  color: var(--text);
 }
