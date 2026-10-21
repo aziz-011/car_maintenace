@@ -30,6 +30,23 @@ describe('collectAlerts', () => {
     expect(weekBefore.map((a: { type: string }) => a.type)).toEqual(['Insurance']);
   });
 
+  it('warns about a thirsty tank and a fuel budget running out, once each', () => {
+    const fill = (id: string, date: string, odometer: number, liters: number) => ({ id, vehicleId: 'v', date, odometer, liters, totalCost: liters * 2.5, fullTank: true });
+    const thirsty = {
+      ...data,
+      reminders: [],
+      vehicles: [{ ...data.vehicles[0], fuelBudget: 250 }],
+      fuel: [fill('a', '2026-09-01', 50000, 40), fill('b', '2026-09-10', 50600, 36), fill('c', '2026-09-20', 51200, 36), fill('d', '2026-10-01', 51800, 36), fill('e', '2026-10-12', 52400, 46)],
+    };
+    const alerts = collectAlerts(thirsty, { today: '2026-10-14', soonDays: 30, sent: {} });
+    expect(alerts.map((a: { type: string; text: string }) => `${a.type}: ${a.text}`.replace(/\s/g, ' '))).toEqual([
+      'Fuel consumption: The last tank used 28% more fuel than usual (7.7 instead of about 6 L/100 km).',
+      'Fuel budget: Fuel this month: TND 205.000 of TND 250.000.',
+    ]);
+    const sent = Object.fromEntries(alerts.map((a: { key: string }) => [a.key, '2026-10-14']));
+    expect(collectAlerts(thirsty, { today: '2026-10-15', soonDays: 30, sent }).some((a: { isNew: boolean }) => a.isNew)).toBe(false);
+  });
+
   it('starts over after renewing', () => {
     const first = collectAlerts(data, { today: '2026-10-20', soonDays: 30, sent: {} });
     const sent = Object.fromEntries(first.map((a: { key: string }) => [a.key, '2026-10-20']));

@@ -1384,3 +1384,197 @@ input[type='checkbox'] {
   font-size: 11px;
   font-weight: 600;
 }
+
+/* ---------- Parts of a tab (fill-ups / trips, services / faults / garages) ---------- */
+.subtabs {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  grid-auto-flow: column;
+  background: var(--surface);
+}
+
+.subtabs button[aria-selected='true'] {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.subtabs .count {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+/* ---------- Worth a look: consumption, budget, open faults ---------- */
+.watch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.watch-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.watch-row:first-child {
+  border-top: none;
+}
+
+button.watch-row {
+  cursor: pointer;
+}
+
+.watch-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.watch-row > .icon {
+  color: var(--muted);
+}
+
+.watch-row.warn > .icon {
+  color: var(--warning);
+}
+
+.watch-row .meter {
+  margin: 2px 0;
+}
+
+.tag.warn {
+  border-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--text);
+}
+
+/* ---------- Garages ---------- */
+.stars {
+  display: flex;
+  gap: 2px;
+}
+
+.stars button {
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--border);
+  cursor: pointer;
+}
+
+.stars button.on {
+  color: var(--warning);
+}
+
+.stars-read {
+  margin-left: 4px;
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+  color: var(--warning);
+}
+
+.quote-group + .quote-group {
+  margin-top: 12px;
+}
+
+.quote-group h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* ---------- Forms and settings ---------- */
+.scan {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.scan .btn {
+  justify-content: center;
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.inline-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 200px;
+  font-size: 0.85rem;
+  color: var(--text-2);
+}
+
+.budget-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.copy-label {
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  color: var(--text-2);
+}
+
+@media (max-width: 560px) {
+  .copy-row {
+    flex-wrap: wrap;
+  }
+
+  .copy-label {
+    flex-basis: 100%;
+  }
+}
+
+tr.current td:first-child {
+  font-weight: 600;
+}
+
+/* A long car name shrinks the selector instead of pushing the settings button off screen. */
+.topbar .title {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.topbar-end {
+  flex: 0 1 auto;
+}
+
+.topbar-end select {
+  flex: 0 1 auto;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+.tag {
+  display: inline-block;
+  white-space: nowrap;
+}

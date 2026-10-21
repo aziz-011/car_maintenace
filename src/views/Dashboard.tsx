@@ -3,10 +3,11 @@ import { Icon } from '../components/Icon';
 import { ReminderBadge } from '../components/ReminderBadge';
 import { dueText } from '../reminderText';
 import { consumptionSegments, daysBetween, fuelSummary, type DrivingRate, type ReminderStatus } from '../stats';
-import { consumptionUnit, distUnit, fmtConsumption, fmtDate, fmtKm, fmtMoney, fmtNum, toUserDist } from '../format';
+import { consumptionUnit, currentPrefs, distUnit, fmtConsumption, localeFor, fmtDate, fmtKm, fmtMoney, fmtNum, toUserDist } from '../format';
 import { today } from '../store';
 import { DEFAULT_OIL_INTERVAL_KM, type FuelEntry, type ServiceEntry, type Vehicle } from '../types';
 import { plural, t } from '../i18n';
+import type { BudgetStatus, ConsumptionAlert } from '../insights';
 
 interface Props {
   vehicle: Vehicle;
@@ -22,6 +23,75 @@ interface Props {
   onOpenReminders: () => void;
   driving: DrivingRate | null;
   lastOdometerDate?: string;
+  consumptionAlert: ConsumptionAlert | null;
+  budget: BudgetStatus | null;
+  openFaults: number;
+  onOpenFaults: () => void;
+  onLogFault: () => void;
+  onOpenCosts: () => void;
+}
+
+const BUDGET_STATE = { ok: 'ok', close: 'soon', over: 'overdue' } as const;
+
+/** Things worth a look now: a tank that used too much fuel, the month's fuel budget, faults not fixed yet. */
+function Watch({ alert, budget, openFaults, onOpenFaults, onLogFault, onOpenCosts }: Pick<Props, 'budget' | 'openFaults' | 'onOpenFaults' | 'onLogFault' | 'onOpenCosts'> & { alert: ConsumptionAlert | null }) {
+  if (!alert && !budget && !openFaults) return null;
+  return (
+    <section className="card watch" aria-label={t('Worth a look')}>
+      {alert && (
+        <div className="watch-row warn">
+          <Icon name="alert" size={20} />
+          <div>
+            <strong>{t('Your last tank used {n}% more fuel than usual', { n: Math.round(alert.percent) })}</strong>
+            <span className="muted">
+              {t('{last} {unit} instead of about {usual}. Check the tire pressure, the air filter and the brakes; if it continues, note it as a fault.', {
+                last: fmtConsumption(alert.last),
+                usual: fmtConsumption(alert.usual),
+                unit: consumptionUnit(),
+              })}
+            </span>
+          </div>
+          <button className="btn small" onClick={onLogFault}>
+            {t('Note a fault')}
+          </button>
+        </div>
+      )}
+      {budget && (
+        <button className="watch-row budget" onClick={onOpenCosts}>
+          <Icon name="fuel" size={20} />
+          <div>
+            <strong>
+              {t('Fuel this month: {spent} of {budget}', { spent: fmtMoney(budget.spent), budget: fmtMoney(budget.budget) })}
+            </strong>
+            <div
+              className={`meter ${BUDGET_STATE[budget.state]}`}
+              role="meter"
+              aria-label={t('Monthly fuel budget used')}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round((budget.spent / budget.budget) * 100)}
+            >
+              <span style={{ width: `${Math.max(2, Math.min(100, (budget.spent / budget.budget) * 100))}%` }} />
+            </div>
+            <span className="muted">
+              {budget.state === 'over'
+                ? t('Over budget by {amount}.', { amount: fmtMoney(budget.spent - budget.budget) })
+                : t('At this pace: about {amount} by the end of the month.', { amount: fmtMoney(budget.projected) })}
+            </span>
+          </div>
+        </button>
+      )}
+      {openFaults > 0 && (
+        <button className="watch-row" onClick={onOpenFaults}>
+          <Icon name="wrench" size={20} />
+          <div>
+            <strong>{plural(openFaults, '{n} fault not fixed yet', '{n} faults not fixed yet')}</strong>
+            <span className="muted">{t('See the fault log')}</span>
+          </div>
+        </button>
+      )}
+    </section>
+  );
 }
 
 /** Deadlines most drivers have, offered as one-tap additions until they are set. */
@@ -34,7 +104,8 @@ const KEY_DATES = [
 /** After this many days without any odometer value, the overview asks for a reading. */
 const STALE_READING_DAYS = 7;
 const STATE_ORDER = { overdue: 0, soon: 1, ok: 2 } as const;
-const MONTH = new Intl.DateTimeFormat(undefined, { month: 'short', timeZone: 'UTC' });
+/** Short month for the date chips, in the chosen language. */
+const shortMonth = (date: string) => new Intl.DateTimeFormat(localeFor(currentPrefs().language), { month: 'short', timeZone: 'UTC' }).format(new Date(date));
 
 /** The date a reminder is expected: a fixed or month-based date, or the driving estimate. */
 const whenDue = (s: ReminderStatus) => [s.dueDate, s.estimatedDate].filter((d): d is string => !!d).sort()[0];
@@ -78,6 +149,12 @@ export function Dashboard({
   onOpenReminders,
   driving,
   lastOdometerDate,
+  consumptionAlert,
+  budget,
+  openFaults,
+  onOpenFaults,
+  onLogFault,
+  onOpenCosts,
 }: Props) {
   const summary = fuelSummary(fuel);
   const serviceCost = services.reduce((s, e) => s + e.cost, 0);
@@ -178,6 +255,8 @@ export function Dashboard({
           </div>
         )}
 
+        <Watch alert={consumptionAlert} budget={budget} openFaults={openFaults} onOpenFaults={onOpenFaults} onLogFault={onLogFault} onOpenCosts={onOpenCosts} />
+
         <section className="card coming">
           <div className="card-header">
             <h3>{t('Coming up')}</h3>
@@ -197,7 +276,7 @@ export function Dashboard({
                     {date ? (
                       <>
                         <b>{Number(date.slice(8, 10))}</b>
-                        {MONTH.format(new Date(date))}
+                        {shortMonth(date)}
                       </>
                     ) : (
                       <>

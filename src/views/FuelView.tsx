@@ -11,9 +11,10 @@ interface Props {
   readings: OdometerReading[];
   onAddReading: () => void;
   onDeleteReading: (r: OdometerReading) => void;
+  nameOf: (driver?: string) => string;
 }
 
-export function FuelView({ entries, onAdd, onEdit, onDelete, readings, onAddReading, onDeleteReading }: Props) {
+export function FuelView({ entries, onAdd, onEdit, onDelete, readings, onAddReading, onDeleteReading, nameOf }: Props) {
   const consumption = new Map(consumptionSegments(entries).map((s) => [s.entryId, s.litersPer100km]));
   const sorted = [...entries].sort((a, b) => b.odometer - a.odometer || b.date.localeCompare(a.date));
 
@@ -50,7 +51,7 @@ export function FuelView({ entries, onAdd, onEdit, onDelete, readings, onAddRead
                     <td>
                       {fmtDate(e.date)}
                       {!e.fullTank && <span className="tag">{t('partial')}</span>}
-                      {e.station && <div className="muted">{e.station}</div>}
+                      {(e.station || e.driver) && <div className="muted">{[e.station, nameOf(e.driver)].filter(Boolean).join(' · ')}</div>}
                     </td>
                     <td className="num">{fmtKm(e.odometer)}</td>
                     <td className="num">{fmtNum(e.liters)}</td>

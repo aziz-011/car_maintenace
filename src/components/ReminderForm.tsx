@@ -36,6 +36,7 @@ export function ReminderForm({ vehicleId, reminder, initialType, currentOdometer
   const [intervalMonths, setIntervalMonths] = useState(reminder?.intervalMonths?.toString() ?? '');
   const [lastDate, setLastDate] = useState(reminder?.lastDate ?? today());
   const [lastOdometer, setLastOdometer] = useState(distInput(reminder?.lastOdometer ?? currentOdometer));
+  const [cost, setCost] = useState(reminder?.estimatedCost?.toString() ?? '');
   const [error, setError] = useState('');
 
   // Paperwork usually has an expiry date; maintenance usually repeats.
@@ -47,14 +48,15 @@ export function ReminderForm({ vehicleId, reminder, initialType, currentOdometer
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (mode === 'date' && !dueDate) {
-      setError('Choose the date it is due or expires.');
+      setError(t('Choose the date it is due or expires.'));
       return;
     }
     if (mode === 'interval' && !intervalKm && !intervalMonths) {
-      setError('Set a distance interval, a time interval, or both.');
+      setError(t('Set a distance interval, a time interval, or both.'));
       return;
     }
     onSave({
+      ...reminder,
       id: reminder?.id ?? newId(),
       vehicleId,
       type: type.trim(),
@@ -63,6 +65,7 @@ export function ReminderForm({ vehicleId, reminder, initialType, currentOdometer
       intervalMonths: mode === 'interval' && intervalMonths ? Number(intervalMonths) : undefined,
       lastDate: mode === 'interval' ? lastDate : (reminder?.lastDate ?? today()),
       lastOdometer: mode === 'interval' ? parseDist(lastOdometer) : (reminder?.lastOdometer ?? currentOdometer),
+      estimatedCost: Number(cost) > 0 ? Number(cost) : undefined,
     });
   };
 
@@ -123,6 +126,11 @@ export function ReminderForm({ vehicleId, reminder, initialType, currentOdometer
             </div>
           </>
         )}
+        <label>
+          {t('Usual cost (optional)')}
+          <input type="number" min="0" step="0.001" value={cost} onChange={(e) => setCost(e.target.value)} />
+        </label>
+        <p className="hint">{t('Used for the spending forecast. Left empty, the cost of the last service of this type is used.')}</p>
         {error && <p className="hint warn">{error}</p>}
         <div className="actions">
           <button type="button" className="btn ghost" onClick={onClose}>

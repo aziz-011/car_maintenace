@@ -1,14 +1,137 @@
 import { useEffect, useRef, useState } from 'react';
 import { monthlyCosts, priceHistory, stationStats, yearlyCosts, type MonthCost, type PricePoint } from '../costs';
-import { distUnit, fmtDate, fmtKm, fmtMoney, fmtMonth, fmtNum, toUserDist } from '../format';
-import { t } from '../i18n';
+import { consumptionUnit, distUnit, fmtConsumption, fmtDate, fmtKm, fmtMoney, fmtMonth, fmtNum, toUserDist } from '../format';
+import { plural, t } from '../i18n';
+import { budgetStatus, compareCars, driverStats, forecast } from '../insights';
 import { today } from '../store';
-import type { FuelEntry, OdometerReading, ServiceEntry } from '../types';
+import type { AppData, FuelEntry, OdometerReading, ServiceEntry, Trip, Vehicle } from '../types';
 
 interface Props {
+  vehicle: Vehicle;
+  data: AppData;
   fuel: FuelEntry[];
   services: ServiceEntry[];
   readings: OdometerReading[];
+  trips: Trip[];
+  nameOf: (driver?: string) => string;
+  onSetBudget: (amount: number | undefined) => void;
+}
+
+const perUnit = (perKm: number | null) => (perKm == null ? null : perKm / toUserDist(1));
+
+/** The monthly fuel budget: set or change it, and see how this month is going. */
+function BudgetCard({ vehicle, fuel, onSetBudget }: Pick<Props, 'vehicle' | 'fuel' | 'onSetBudget'>) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(vehicle.fuelBudget?.toString() ?? '');
+  const status = budgetStatus(vehicle, fuel, today());
+  return (
+    <section className="card">
+      <div className="card-header">
+        <h3>{t('Monthly fuel budget')}</h3>
+        {!editing && (
+          <button className="btn small" onClick={() => setEditing(true)}>
+            {vehicle.fuelBudget ? t('Change') : t('Set a budget')}
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <form
+          className="inline-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSetBudget(Number(value) > 0 ? Number(value) : undefined);
+            setEditing(false);
+          }}
+        >
+          <label>
+            {t('Budget per month')}
+            <input type="number" min="0" step="1" autoFocus value={value} onChange={(e) => setValue(e.target.value)} />
+          </label>
+          <button className="btn primary">{t('Save')}</button>
+          <button type="button" className="btn ghost" onClick={() => setEditing(false)}>
+            {t('Cancel')}
+          </button>
+        </form>
+      ) : status ? (
+        <>
+          <div className="budget-line">
+            <span className="figure">{fmtMoney(status.spent)}</span>
+            <span className="muted">{t('of {budget} this month', { budget: fmtMoney(status.budget) })}</span>
+          </div>
+          <div className={`meter ${{ ok: 'ok', close: 'soon', over: 'overdue' }[status.state]}`} aria-hidden="true">
+            <span style={{ width: `${Math.max(2, Math.min(100, (status.spent / status.budget) * 100))}%` }} />
+          </div>
+          <p className="hint">
+            {status.state === 'over'
+              ? t('Over budget by {amount}.', { amount: fmtMoney(status.spent - status.budget) })
+              : t('At this pace: about {amount} by the end of the month.', { amount: fmtMoney(status.projected) })}{' '}
+            {t('You get a warning on the overview, and by email with the home server, when it gets close.')}
+          </p>
+        </>
+      ) : (
+        <p className="empty">{t('Set how much you want to spend on fuel each month to be warned before going over.')}</p>
+      )}
+    </section>
+  );
+}
+
+/** Next 12 months: fuel at the current pace plus the maintenance that falls due. */
+function ForecastCard({ vehicle, data }: Pick<Props, 'vehicle' | 'data'>) {
+  const f = forecast(vehicle, data, today());
+  const [open, setOpen] = useState(false);
+  const shown = open ? f.items : f.items.slice(0, 5);
+  return (
+    <section className="card">
+      <div className="card-header">
+        <h3>{t('Next 12 months')}</h3>
+        {f.total != null && <span className="figure">≈ {fmtMoney(f.total)}</span>}
+      </div>
+      <dl className="facts">
+        <div>
+          <dt>{t('Fuel')}</dt>
+          <dd>{f.fuel != null ? fmtMoney(f.fuel) : '—'}</dd>
+        </div>
+        <div>
+          <dt>{t('Maintenance')}</dt>
+          <dd>{fmtMoney(f.services)}</dd>
+        </div>
+        <div>
+          <dt>{t('Distance')}</dt>
+          <dd>{f.km != null ? fmtKm(f.km) : '—'}</dd>
+        </div>
+      </dl>
+      {f.fuel == null && <p className="hint">{t('The fuel estimate needs two odometer values a week apart and two fill-ups.')}</p>}
+      {f.items.length > 0 ? (
+        <>
+          <ul className="list">
+            {shown.map((i, n) => (
+              <li key={`${i.reminderId}-${n}`} className="list-item">
+                <div>
+                  <strong>{t(i.type)}</strong>
+                  <span className="muted">{fmtDate(i.date)}</span>
+                </div>
+                <span className="num">{i.cost != null ? fmtMoney(i.cost) : t('cost unknown')}</span>
+              </li>
+            ))}
+          </ul>
+          {f.items.length > 5 && (
+            <button className="link" onClick={() => setOpen(!open)}>
+              {open ? t('Show less') : t('Show all {n}', { n: f.items.length })}
+            </button>
+          )}
+          {f.unknown > 0 && (
+            <p className="hint">
+              {plural(f.unknown, '{n} item has no known cost', '{n} items have no known cost')}
+              {'. '}
+              {t('Set a usual cost on the reminder, or log the service once with its price.')}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="empty">{t('Nothing falls due in the next 12 months.')}</p>
+      )}
+    </section>
+  );
 }
 
 /** Width of the element, so charts draw in real pixels and text stays readable. */
@@ -187,7 +310,7 @@ function PriceLine({ points }: { points: PricePoint[] }) {
 }
 
 /** Where the money goes: month by month, year by year, and what fuel costs at each station. */
-export function CostsView({ fuel, services, readings }: Props) {
+export function CostsView({ vehicle, data, fuel, services, readings, trips, nameOf, onSetBudget }: Props) {
   const now = today();
   const months = monthlyCosts(fuel, services, now);
   const years = yearlyCosts(fuel, services, readings);
@@ -195,9 +318,14 @@ export function CostsView({ fuel, services, readings }: Props) {
   const stations = stationStats(fuel, now);
   const last12 = months.reduce((s, m) => s + m.fuel + m.service, 0);
   const anySpending = months.some((m) => m.fuel || m.service);
+  const cars = data.vehicles.length > 1 ? compareCars(data, now) : [];
+  const drivers = driverStats(fuel, services, trips);
 
   return (
     <div className="stack">
+      <ForecastCard key={vehicle.id} vehicle={vehicle} data={data} />
+      <BudgetCard key={`${vehicle.id}-${vehicle.fuelBudget}`} vehicle={vehicle} fuel={fuel} onSetBudget={onSetBudget} />
+
       <section className="card">
         <div className="card-header">
           <h3>{t('Last 12 months')}</h3>
@@ -304,6 +432,70 @@ export function CostsView({ fuel, services, readings }: Props) {
           </>
         )}
       </section>
+
+      {cars.length > 0 && (
+        <section className="card">
+          <h3>{t('Your cars side by side')}</h3>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t('Car')}</th>
+                  <th className="num">{consumptionUnit()}</th>
+                  <th className="num">{t('Fuel per {unit}', { unit: distUnit() })}</th>
+                  <th className="num">{t('All costs per {unit}', { unit: distUnit() })}</th>
+                  <th className="num">{t('Per week')}</th>
+                  <th className="num">{t('Spent, 12 months')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cars.map((c) => (
+                  <tr key={c.vehicle.id} className={c.vehicle.id === vehicle.id ? 'current' : undefined}>
+                    <td>{c.vehicle.name}</td>
+                    <td className="num">{fmtConsumption(c.consumption)}</td>
+                    <td className="num">{fmtMoney(perUnit(c.fuelPerKm))}</td>
+                    <td className="num">{fmtMoney(perUnit(c.costPerKm))}</td>
+                    <td className="num">{c.kmPerWeek != null ? fmtKm(c.kmPerWeek) : '—'}</td>
+                    <td className="num">{fmtMoney(c.spent12m)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="hint">{t('All costs per km counts fuel and maintenance over the last 12 months.')}</p>
+        </section>
+      )}
+
+      {drivers.length > 0 && (
+        <section className="card">
+          <h3>{t('By driver')}</h3>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t('Driver')}</th>
+                  <th className="num">{t('Fill-ups')}</th>
+                  <th className="num">{t('Fuel')}</th>
+                  <th className="num">{t('Maintenance')}</th>
+                  <th className="num">{t('Trips')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drivers.map((d) => (
+                  <tr key={d.driver}>
+                    <td>{nameOf(d.driver)}</td>
+                    <td className="num">{d.fills}</td>
+                    <td className="num">{fmtMoney(d.fuelCost)}</td>
+                    <td className="num">{fmtMoney(d.serviceCost)}</td>
+                    <td className="num">{d.tripKm ? fmtKm(d.tripKm) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="hint">{t('For this car. Entries logged before names were set are not counted here.')}</p>
+        </section>
+      )}
     </div>
   );
 }

@@ -10,6 +10,8 @@ export interface Vehicle {
   year?: number;
   plate?: string;
   initialOdometer: number;
+  /** Monthly fuel budget for this car, in the chosen currency. */
+  fuelBudget?: number;
 }
 
 /** A photo or PDF kept with a record: a receipt, an invoice, a scanned document. */
@@ -33,6 +35,8 @@ export interface FuelEntry {
   station?: string;
   notes?: string;
   attachments?: Attachment[];
+  /** Who logged it: a name typed on the device, or a claude.ai person id ("u_…"). */
+  driver?: string;
 }
 
 /** Kind of job done at a visit. */
@@ -108,6 +112,7 @@ export interface ServiceEntry {
   shop?: string;
   notes?: string;
   attachments?: Attachment[];
+  driver?: string;
 }
 
 export interface Reminder {
@@ -123,6 +128,8 @@ export interface Reminder {
   /** Reference point used when no matching service has been logged yet. */
   lastDate: string;
   lastOdometer: number;
+  /** What it usually costs, for the spending forecast; the last matching service is used otherwise. */
+  estimatedCost?: number;
 }
 
 /** An odometer reading on its own, e.g. the weekly check-in. */
@@ -190,6 +197,94 @@ export interface TireSet {
   notes?: string;
 }
 
+/** Kinds of trouble the fault log records. */
+export const ISSUE_KINDS = ['warning-light', 'noise', 'fault-code', 'leak', 'vibration', 'other'] as const;
+export type IssueKind = (typeof ISSUE_KINDS)[number];
+export const ISSUE_KIND_LABEL: Record<IssueKind, string> = {
+  'warning-light': 'Warning light',
+  noise: 'Noise',
+  'fault-code': 'Fault code (OBD)',
+  leak: 'Leak',
+  vibration: 'Vibration',
+  other: 'Other',
+};
+
+/** Common dashboard warning lights, for the fault form. */
+export const WARNING_LIGHTS = [
+  'Check engine',
+  'Oil pressure',
+  'Battery / charging',
+  'Coolant temperature',
+  'Brake system',
+  'ABS',
+  'Airbag',
+  'Glow plugs',
+  'DPF',
+  'Tire pressure',
+  'ESP / traction control',
+  'Power steering',
+];
+
+/** A problem noticed on the car; linking the repair that fixed it shows what keeps coming back. */
+export interface Issue {
+  id: string;
+  vehicleId: string;
+  date: string;
+  odometer: number;
+  kind: IssueKind;
+  /** e.g. "Check engine" or "Squeak when braking". */
+  title: string;
+  /** OBD code such as P0401. */
+  code?: string;
+  notes?: string;
+  /** The service that fixed it; empty while it is still open. */
+  fixedByServiceId?: string;
+  fixedDate?: string;
+  attachments?: Attachment[];
+}
+
+/** A garage or mechanic, shared by all cars. Services link to it by name. */
+export interface Garage {
+  id: string;
+  name: string;
+  phone?: string;
+  address?: string;
+  /** 1 to 5. */
+  rating?: number;
+  notes?: string;
+}
+
+/** A price asked for a job, to compare garages before choosing. */
+export interface Quote {
+  id: string;
+  vehicleId: string;
+  garageId: string;
+  date: string;
+  job: string;
+  amount: number;
+  notes?: string;
+  /** Set when this quote was the one chosen. */
+  accepted?: boolean;
+}
+
+export const TRIP_PURPOSES = ['work', 'personal'] as const;
+export type TripPurpose = (typeof TRIP_PURPOSES)[number];
+export const TRIP_PURPOSE_LABEL: Record<TripPurpose, string> = { work: 'Work', personal: 'Personal' };
+
+/** A journey logged on its own, e.g. to claim work driving. */
+export interface Trip {
+  id: string;
+  vehicleId: string;
+  date: string;
+  from?: string;
+  to?: string;
+  /** km */
+  distance: number;
+  purpose: TripPurpose;
+  notes?: string;
+  driver?: string;
+}
+
 export type Currency = string;
 
 /** App-wide choices; stored as a single record with id "prefs". */
@@ -199,6 +294,8 @@ export interface Prefs {
   currency: Currency;
   distance: 'km' | 'mi';
   consumption: 'l100' | 'kml';
+  /** Warn when a tank uses this much more fuel than usual (percent). */
+  consumptionAlert?: number;
 }
 
 export const DEFAULT_PREFS: Prefs = { id: 'prefs', language: 'en', currency: 'TND', distance: 'km', consumption: 'l100' };
@@ -213,11 +310,28 @@ export interface AppData {
   readings: OdometerReading[];
   documents: CarDocument[];
   tires: TireSet[];
+  issues: Issue[];
+  garages: Garage[];
+  quotes: Quote[];
+  trips: Trip[];
   prefs: Prefs[];
 }
 
 /** Every kind of record, in one place for storage and sync code. */
-export const COLLECTIONS = ['vehicles', 'fuel', 'services', 'reminders', 'readings', 'documents', 'tires', 'prefs'] as const;
+export const COLLECTIONS = [
+  'vehicles',
+  'fuel',
+  'services',
+  'reminders',
+  'readings',
+  'documents',
+  'tires',
+  'issues',
+  'garages',
+  'quotes',
+  'trips',
+  'prefs',
+] as const;
 
 export const prefsOf = (data: AppData): Prefs => ({ ...DEFAULT_PREFS, ...data.prefs?.[0] });
 
@@ -225,7 +339,7 @@ export const prefsOf = (data: AppData): Prefs => ({ ...DEFAULT_PREFS, ...data.pr
 export const DEFAULT_OIL_INTERVAL_KM = 7500;
 
 export function emptyData(): AppData {
-  return { vehicles: [], fuel: [], services: [], reminders: [], readings: [], documents: [], tires: [], prefs: [] };
+  return Object.fromEntries(COLLECTIONS.map((k) => [k, []])) as unknown as AppData;
 }
 
 /**

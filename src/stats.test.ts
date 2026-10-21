@@ -24,6 +24,12 @@ describe('consumptionSegments', () => {
     expect(segs[0].litersPer100km).toBeCloseTo(6);
   });
 
+  it('skips a gap where fill-ups were not logged', () => {
+    const segs = consumptionSegments([fuel('a', 1000, 40), fuel('b', 1600, 36), fuel('c', 9000, 40), fuel('d', 9500, 30)]);
+    expect(segs.map((s) => s.entryId)).toEqual(['b', 'd']);
+    expect(fuelSummary([fuel('a', 1000, 40), fuel('b', 1600, 36), fuel('c', 9000, 40), fuel('d', 9500, 30)]).averageLPer100).toBeCloseTo(6);
+  });
+
   it('accumulates partial fills into the next full segment', () => {
     const segs = consumptionSegments([
       fuel('c', 1800, 10, false), // out of order on purpose

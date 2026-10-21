@@ -2,13 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { ConfirmHost } from './components/ConfirmHost';
 import { DocumentForm } from './components/DocumentForm';
 import { FuelForm } from './components/FuelForm';
+import { GarageForm } from './components/GarageForm';
 import { Icon, type IconName } from './components/Icon';
+import { IssueForm } from './components/IssueForm';
+import { QuoteForm } from './components/QuoteForm';
+import { SubTabs } from './components/SubTabs';
+import { TripForm } from './components/TripForm';
 import { OdometerForm } from './components/OdometerForm';
 import { ReminderForm } from './components/ReminderForm';
 import { ServiceForm } from './components/ServiceForm';
 import { TireForm } from './components/TireForm';
 import { VehicleForm } from './components/VehicleForm';
 import { confirmAction } from './confirm';
+import { withoutDuplicates, type CsvImport } from './csv';
+import { budgetStatus, consumptionAlert, DEFAULT_CONSUMPTION_ALERT } from './insights';
+import { useDrivers } from './people';
 import { applyPrefs } from './format';
 import { setLanguage, t } from './i18n';
 import { addMonths, vehicleOverview } from './stats';
@@ -20,17 +28,24 @@ import {
   type AppData,
   type CarDocument,
   type FuelEntry,
+  type Garage,
+  type Issue,
   type Prefs,
+  type Quote,
   type Reminder,
   type ServiceEntry,
   type TireSet,
+  type Trip,
   type Vehicle,
 } from './types';
 import { CarView } from './views/CarView';
 import { CostsView } from './views/CostsView';
 import { Dashboard } from './views/Dashboard';
+import { FaultsView } from './views/FaultsView';
 import { FuelView } from './views/FuelView';
+import { GaragesView } from './views/GaragesView';
 import { ServicesView } from './views/ServicesView';
+import { TripsView } from './views/TripsView';
 import { SettingsView } from './views/SettingsView';
 
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
@@ -44,14 +59,31 @@ type Tab = 'dashboard' | 'fuel' | 'services' | 'costs' | 'car' | 'settings';
 
 type Dialog =
   | { kind: 'vehicle'; item?: Vehicle }
-  | { kind: 'fuel'; item?: FuelEntry }
+  | { kind: 'fuel'; item?: FuelEntry; scanFirst?: boolean }
   | { kind: 'service'; item?: ServiceEntry }
   | { kind: 'reminder'; item?: Reminder; initialType?: string }
   | { kind: 'odometer' }
   | { kind: 'document'; item?: CarDocument }
-  | { kind: 'tires'; item?: TireSet };
+  | { kind: 'tires'; item?: TireSet }
+  | { kind: 'issue'; item?: Issue }
+  | { kind: 'garage'; item?: Garage; thenQuote?: boolean }
+  | { kind: 'quote'; item?: Quote; job?: string }
+  | { kind: 'trip'; item?: Trip };
 
-type Collection = 'fuel' | 'services' | 'reminders' | 'readings' | 'documents' | 'tires';
+type Collection = 'fuel' | 'services' | 'reminders' | 'readings' | 'documents' | 'tires' | 'issues' | 'quotes' | 'trips';
+type FuelPart = 'fills' | 'trips';
+type ServicePart = 'services' | 'faults' | 'garages';
+
+/** Opened from a home-screen shortcut: /?add=fuel or /?add=receipt. */
+function shortcutDialog(): Dialog | null {
+  const add = new URLSearchParams(location.search).get('add');
+  if (add !== 'fuel' && add !== 'receipt') return null;
+  history.replaceState(null, '', location.pathname);
+  return { kind: 'fuel', scanFirst: add === 'receipt' };
+}
+
+// Read once when the page opens, not on every render.
+const SHORTCUT = shortcutDialog();
 
 const SELECTED_KEY = 'car-maintenance:selected';
 
@@ -82,7 +114,9 @@ function withDocumentReminder(reminders: Reminder[], doc: CarDocument, odometer:
 export default function App() {
   const { data, status, backend, update, replace, retry } = useAppData();
   const [tab, setTab] = useState<Tab>('dashboard');
-  const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [dialog, setDialog] = useState<Dialog | null>(SHORTCUT);
+  const [fuelPart, setFuelPart] = useState<FuelPart>('fills');
+  const [servicePart, setServicePart] = useState<ServicePart>('services');
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     try {
       return localStorage.getItem(SELECTED_KEY);
@@ -114,6 +148,19 @@ export default function App() {
   const fuel = useMemo(() => data.fuel.filter((f) => f.vehicleId === vehicle?.id), [data.fuel, vehicle]);
   const services = useMemo(() => data.services.filter((s) => s.vehicleId === vehicle?.id), [data.services, vehicle]);
   const readings = useMemo(() => data.readings.filter((r) => r.vehicleId === vehicle?.id), [data.readings, vehicle]);
+  const trips = useMemo(() => data.trips.filter((r) => r.vehicleId === vehicle?.id), [data.trips, vehicle]);
+  const issues = useMemo(() => data.issues.filter((r) => r.vehicleId === vehicle?.id), [data.issues, vehicle]);
+  const drivers = useDrivers(
+    backend,
+    [...data.fuel, ...data.services, ...data.trips].map((x) => x.driver).filter((d): d is string => !!d),
+  );
+  const previousFill = useMemo(() => [...fuel].sort((a, b) => a.odometer - b.odometer || a.date.localeCompare(b.date)).at(-1), [fuel]);
+  const garageNames = useMemo(
+    () => [...new Set([...data.garages.map((g) => g.name), ...data.services.map((s) => s.shop ?? '')].map((n) => n.trim()).filter(Boolean))].sort(),
+    [data.garages, data.services],
+  );
+  const alertAt = prefs.consumptionAlert ?? DEFAULT_CONSUMPTION_ALERT;
+  const fuelAlert = useMemo(() => (alertAt > 0 ? consumptionAlert(fuel, alertAt) : null), [fuel, alertAt]);
   // prefsKey: the estimates' text depends on units and language.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const overview = useMemo(() => (vehicle ? vehicleOverview(vehicle, data, today()) : null), [vehicle, data, prefsKey]);
@@ -146,7 +193,44 @@ export default function App() {
       readings: notThisCar(d.readings),
       documents: notThisCar(d.documents),
       tires: notThisCar(d.tires),
+      issues: notThisCar(d.issues),
+      quotes: notThisCar(d.quotes),
+      trips: notThisCar(d.trips),
     }));
+  };
+
+  const deleteGarage = async (g: Garage) => {
+    if (!(await confirmAction(t('Delete {name} and its quotes? Services done there are kept.', { name: g.name }), t('Delete')))) return;
+    update((d) => ({ ...d, garages: d.garages.filter((x) => x.id !== g.id), quotes: d.quotes.filter((q) => q.garageId !== g.id) }));
+  };
+
+  /** The chosen quote is marked; the others for the same job are not. */
+  const acceptQuote = (q: Quote) => {
+    const job = q.job.trim().toLowerCase();
+    update((d) => ({
+      ...d,
+      quotes: d.quotes.map((x) => (x.vehicleId === q.vehicleId && x.job.trim().toLowerCase() === job ? { ...x, accepted: x.id === q.id } : x)),
+    }));
+  };
+
+  const importCsvRows = (r: CsvImport): number => {
+    let added = 0;
+    update((d) => {
+      if (r.kind === 'fuel') {
+        const rows = withoutDuplicates(r.items, d.fuel);
+        added = rows.length;
+        return { ...d, fuel: [...d.fuel, ...rows] };
+      }
+      if (r.kind === 'services') {
+        const rows = withoutDuplicates(r.items, d.services);
+        added = rows.length;
+        return { ...d, services: [...d.services, ...rows] };
+      }
+      const rows = withoutDuplicates(r.items, d.trips);
+      added = rows.length;
+      return { ...d, trips: [...d.trips, ...rows] };
+    });
+    return added;
   };
 
   const remove = async (key: Collection, id: string) => {
@@ -263,28 +347,111 @@ export default function App() {
             }
             driving={overview?.driving ?? null}
             lastOdometerDate={overview?.lastOdometerDate}
+            consumptionAlert={fuelAlert}
+            budget={budgetStatus(vehicle, fuel, today())}
+            openFaults={issues.filter((i) => !i.fixedDate && !i.fixedByServiceId).length}
+            onOpenFaults={() => {
+              setServicePart('faults');
+              setTab('services');
+            }}
+            onLogFault={() => setDialog({ kind: 'issue' })}
+            onOpenCosts={() => setTab('costs')}
           />
         )}
         {tab === 'fuel' && (
-          <FuelView
-            entries={fuel}
-            onAdd={() => setDialog({ kind: 'fuel' })}
-            onEdit={(item) => setDialog({ kind: 'fuel', item })}
-            onDelete={(e) => remove('fuel', e.id)}
-            readings={readings}
-            onAddReading={() => setDialog({ kind: 'odometer' })}
-            onDeleteReading={(r) => remove('readings', r.id)}
-          />
+          <div className="stack">
+            <SubTabs
+              label="Fuel"
+              value={fuelPart}
+              onChange={setFuelPart}
+              options={[
+                { id: 'fills', label: 'Fill-ups' },
+                { id: 'trips', label: 'Trips', count: trips.length },
+              ]}
+            />
+            {fuelPart === 'fills' ? (
+              <FuelView
+                entries={fuel}
+                onAdd={() => setDialog({ kind: 'fuel' })}
+                onEdit={(item) => setDialog({ kind: 'fuel', item })}
+                onDelete={(e) => remove('fuel', e.id)}
+                readings={readings}
+                onAddReading={() => setDialog({ kind: 'odometer' })}
+                onDeleteReading={(r) => remove('readings', r.id)}
+                nameOf={drivers.nameOf}
+              />
+            ) : (
+              <TripsView
+                trips={trips}
+                fuel={fuel}
+                services={services}
+                readings={readings}
+                nameOf={drivers.nameOf}
+                onAdd={() => setDialog({ kind: 'trip' })}
+                onEdit={(item) => setDialog({ kind: 'trip', item })}
+                onDelete={(x) => remove('trips', x.id)}
+              />
+            )}
+          </div>
         )}
         {tab === 'services' && (
-          <ServicesView
-            entries={services}
-            onAdd={() => setDialog({ kind: 'service' })}
-            onEdit={(item) => setDialog({ kind: 'service', item })}
-            onDelete={(e) => remove('services', e.id)}
+          <div className="stack">
+            <SubTabs
+              label="Services"
+              value={servicePart}
+              onChange={setServicePart}
+              options={[
+                { id: 'services', label: 'Services' },
+                { id: 'faults', label: 'Faults', count: issues.filter((i) => !i.fixedDate && !i.fixedByServiceId).length },
+                { id: 'garages', label: 'Garages' },
+              ]}
+            />
+            {servicePart === 'services' && (
+              <ServicesView
+                entries={services}
+                onAdd={() => setDialog({ kind: 'service' })}
+                onEdit={(item) => setDialog({ kind: 'service', item })}
+                onDelete={(e) => remove('services', e.id)}
+                nameOf={drivers.nameOf}
+              />
+            )}
+            {servicePart === 'faults' && (
+              <FaultsView
+                issues={issues}
+                services={services}
+                onAdd={() => setDialog({ kind: 'issue' })}
+                onEdit={(item) => setDialog({ kind: 'issue', item })}
+                onDelete={(x) => remove('issues', x.id)}
+              />
+            )}
+            {servicePart === 'garages' && (
+              <GaragesView
+                garages={data.garages}
+                services={data.services}
+                quotes={mine(data.quotes)}
+                onAddGarage={() => setDialog({ kind: 'garage' })}
+                onEditGarage={(item) => setDialog({ kind: 'garage', item })}
+                onDeleteGarage={(g) => void deleteGarage(g)}
+                onAddQuote={(job) => setDialog({ kind: 'quote', job })}
+                onEditQuote={(item) => setDialog({ kind: 'quote', item })}
+                onDeleteQuote={(q) => remove('quotes', q.id)}
+                onAcceptQuote={acceptQuote}
+              />
+            )}
+          </div>
+        )}
+        {tab === 'costs' && (
+          <CostsView
+            vehicle={vehicle}
+            data={data}
+            fuel={fuel}
+            services={services}
+            readings={readings}
+            trips={trips}
+            nameOf={drivers.nameOf}
+            onSetBudget={(amount) => update((d) => ({ ...d, vehicles: upsert(d.vehicles, { ...vehicle, fuelBudget: amount }) }))}
           />
         )}
-        {tab === 'costs' && <CostsView fuel={fuel} services={services} readings={readings} />}
         {tab === 'car' && (
           <CarView
             vehicle={vehicle}
@@ -310,6 +477,11 @@ export default function App() {
         {tab === 'settings' && (
           <SettingsView
             data={data}
+            vehicle={vehicle}
+            onImportCsv={importCsvRows}
+            driverName={drivers.name}
+            onDriverName={drivers.saveName}
+            nameOf={drivers.nameOf}
             prefs={prefs}
             onChangePrefs={savePrefs}
             onAddVehicle={() => setDialog({ kind: 'vehicle' })}
@@ -328,6 +500,9 @@ export default function App() {
           entry={dialog.item}
           minOdometer={odometer}
           backend={backend}
+          previous={previousFill}
+          driver={drivers.me}
+          scanFirst={dialog.scanFirst}
           onSave={(e) => {
             update((d) => ({ ...d, fuel: upsert(d.fuel, e) }));
             close();
@@ -352,6 +527,8 @@ export default function App() {
           entry={dialog.item}
           currentOdometer={odometer}
           backend={backend}
+          garageNames={garageNames}
+          driver={drivers.me}
           onSave={(e) => {
             update((d) => ({ ...d, services: upsert(d.services, e) }));
             close();
@@ -408,6 +585,57 @@ export default function App() {
                 set,
               ),
             }));
+            close();
+          }}
+          onClose={close}
+        />
+      )}
+      {dialog?.kind === 'issue' && (
+        <IssueForm
+          vehicleId={vehicle.id}
+          issue={dialog.item}
+          currentOdometer={odometer}
+          services={services}
+          backend={backend}
+          onSave={(i) => {
+            update((d) => ({ ...d, issues: upsert(d.issues, i) }));
+            close();
+          }}
+          onClose={close}
+        />
+      )}
+      {dialog?.kind === 'garage' && (
+        <GarageForm
+          garage={dialog.item}
+          onSave={(g) => {
+            update((d) => ({ ...d, garages: upsert(d.garages, g) }));
+            setDialog(dialog.thenQuote ? { kind: 'quote' } : null);
+          }}
+          onClose={close}
+        />
+      )}
+      {dialog?.kind === 'quote' && (
+        <QuoteForm
+          vehicleId={vehicle.id}
+          quote={dialog.item}
+          job={dialog.job}
+          garages={data.garages}
+          onSave={(q) => {
+            update((d) => ({ ...d, quotes: upsert(d.quotes, q) }));
+            close();
+          }}
+          onAddGarage={() => setDialog({ kind: 'garage', thenQuote: true })}
+          onClose={close}
+        />
+      )}
+      {dialog?.kind === 'trip' && (
+        <TripForm
+          vehicleId={vehicle.id}
+          trip={dialog.item}
+          places={[...new Set(data.trips.flatMap((x) => [x.from ?? '', x.to ?? '']).filter(Boolean))].sort()}
+          driver={drivers.me}
+          onSave={(x) => {
+            update((d) => ({ ...d, trips: upsert(d.trips, x) }));
             close();
           }}
           onClose={close}

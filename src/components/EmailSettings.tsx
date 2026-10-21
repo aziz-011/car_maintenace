@@ -148,7 +148,7 @@ export function EmailSettings() {
           autoComplete="off"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder={config.hasKey ? `Saved (${config.keyHint}). Paste a new one to replace it.` : 'Paste your API key'}
+          placeholder={config.hasKey ? t('Saved ({hint}). Type a new key to replace it.', { hint: config.keyHint }) : t('Paste your API key')}
         />
       </label>
 

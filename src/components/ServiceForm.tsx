@@ -16,9 +16,12 @@ interface Props {
   onSave: (e: ServiceEntry) => void;
   onClose: () => void;
   backend: Backend;
+  /** Known garages, offered in the garage field. */
+  garageNames: string[];
+  driver?: string;
 }
 
-export function ServiceForm({ vehicleId, entry, currentOdometer, onSave, onClose, backend }: Props) {
+export function ServiceForm({ vehicleId, entry, currentOdometer, onSave, onClose, backend, garageNames, driver }: Props) {
   const [date, setDate] = useState(entry?.date ?? today());
   const [odometer, setOdometer] = useState(distInput(entry?.odometer) ?? distInput(currentOdometer));
   const [type, setType] = useState(entry?.type ?? SERVICE_TYPES[0]);
@@ -41,6 +44,7 @@ export function ServiceForm({ vehicleId, entry, currentOdometer, onSave, onClose
       shop: shop.trim() || undefined,
       notes: notes.trim() || undefined,
       attachments: attachments.length ? attachments : undefined,
+      driver: entry ? entry.driver : driver,
     });
   };
 
@@ -68,11 +72,11 @@ export function ServiceForm({ vehicleId, entry, currentOdometer, onSave, onClose
         <div className="row">
           <label>
             {t('Cost')}
-            <input type="number" step="0.01" min="0" value={cost} onChange={(e) => setCost(e.target.value)} />
+            <input type="number" step="0.001" min="0" value={cost} onChange={(e) => setCost(e.target.value)} />
           </label>
           <label>
             {t('Shop / garage')}
-            <input value={shop} onChange={(e) => setShop(e.target.value)} />
+            <SelectOrOther value={shop} onChange={setShop} options={garageNames} placeholder="—" otherPlaceholder={t('Garage name')} />
           </label>
         </div>
         <label>

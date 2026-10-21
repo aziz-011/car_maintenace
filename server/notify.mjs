@@ -1,6 +1,7 @@
 // Decides which reminder emails are due. Pure functions, so they can be unit tested.
 import { calendarItems } from '../src/calendar.ts';
-import { applyPrefs, fmtDate, fmtKm } from '../src/format.ts';
+import { applyPrefs, consumptionUnit, fmtConsumption, fmtDate, fmtKm, fmtMoney } from '../src/format.ts';
+import { budgetStatus, consumptionAlert, DEFAULT_CONSUMPTION_ALERT } from '../src/insights.ts';
 import { setLanguage, t } from '../src/i18n.ts';
 import { dueText } from '../src/reminderText.ts';
 import { daysBetween, vehicleOverview } from '../src/stats.ts';
@@ -38,6 +39,38 @@ export function collectAlerts(data, { today, soonDays, sent }) {
       if (!stage) continue;
       const key = [reminder.id, stage, status.dueDate ?? '', status.dueOdometer ?? ''].join('|');
       alerts.push({ key, isNew: !(key in sent), vehicle: vehicle.name, type: t(reminder.type), state: status.state, text: dueText(status) });
+    }
+    const fuel = data.fuel.filter((f) => f.vehicleId === vehicle.id);
+    const threshold = prefsOf(data).consumptionAlert ?? DEFAULT_CONSUMPTION_ALERT;
+    const high = threshold > 0 ? consumptionAlert(fuel, threshold) : null;
+    if (high) {
+      const key = `consumption|${high.entryId}`;
+      alerts.push({
+        key,
+        isNew: !(key in sent),
+        vehicle: vehicle.name,
+        type: t('Fuel consumption'),
+        state: 'soon',
+        text: t('The last tank used {n}% more fuel than usual ({last} instead of about {usual} {unit}).', {
+          n: Math.round(high.percent),
+          last: fmtConsumption(high.last),
+          usual: fmtConsumption(high.usual),
+          unit: consumptionUnit(),
+        }),
+      });
+    }
+    const budget = budgetStatus(vehicle, fuel, today);
+    if (budget && budget.state !== 'ok') {
+      // One email when it gets close and one if it goes over, each month.
+      const key = `budget|${vehicle.id}|${today.slice(0, 7)}|${budget.state}`;
+      alerts.push({
+        key,
+        isNew: !(key in sent),
+        vehicle: vehicle.name,
+        type: t('Fuel budget'),
+        state: budget.state === 'over' ? 'overdue' : 'soon',
+        text: t('Fuel this month: {spent} of {budget}.', { spent: fmtMoney(budget.spent), budget: fmtMoney(budget.budget) }),
+      });
     }
   }
   return alerts;

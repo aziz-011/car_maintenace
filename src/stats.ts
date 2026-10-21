@@ -6,8 +6,17 @@ export interface ConsumptionSegment {
   date: string;
   distance: number;
   liters: number;
+  /** What the fuel in this segment cost. */
+  cost: number;
   litersPer100km: number;
 }
+
+/**
+ * No tank goes this far: a longer distance between two full fill-ups means
+ * fill-ups were not logged (a gap in imported history, a forgotten receipt),
+ * so it is not counted as one tank.
+ */
+export const MAX_TANK_KM = 2000;
 
 const byOdometer = <T extends { odometer: number; date: string }>(a: T, b: T) =>
   a.odometer - b.odometer || a.date.localeCompare(b.date);
@@ -21,6 +30,7 @@ export function consumptionSegments(entries: FuelEntry[]): ConsumptionSegment[] 
   const segments: ConsumptionSegment[] = [];
   let lastFull: FuelEntry | undefined;
   let liters = 0;
+  let cost = 0;
 
   for (const entry of sorted) {
     if (!lastFull) {
@@ -28,19 +38,22 @@ export function consumptionSegments(entries: FuelEntry[]): ConsumptionSegment[] 
       continue;
     }
     liters += entry.liters;
+    cost += entry.totalCost;
     if (!entry.fullTank) continue;
     const distance = entry.odometer - lastFull.odometer;
-    if (distance > 0) {
+    if (distance > 0 && distance <= MAX_TANK_KM) {
       segments.push({
         entryId: entry.id,
         date: entry.date,
         distance,
         liters,
+        cost,
         litersPer100km: (liters / distance) * 100,
       });
     }
     lastFull = entry;
     liters = 0;
+    cost = 0;
   }
   return segments;
 }
@@ -60,6 +73,7 @@ export function fuelSummary(entries: FuelEntry[]): FuelSummary {
   const totalCost = entries.reduce((s, e) => s + e.totalCost, 0);
   const segDistance = segments.reduce((s, x) => s + x.distance, 0);
   const segLiters = segments.reduce((s, x) => s + x.liters, 0);
+  const segCost = segments.reduce((s, x) => s + x.cost, 0);
 
   const sorted = [...entries].sort(byOdometer);
   const distance = sorted.length > 1 ? sorted[sorted.length - 1].odometer - sorted[0].odometer : 0;
@@ -72,7 +86,8 @@ export function fuelSummary(entries: FuelEntry[]): FuelSummary {
     averageLPer100: segDistance > 0 ? (segLiters / segDistance) * 100 : null,
     lastLPer100: segments.length ? segments[segments.length - 1].litersPer100km : null,
     averagePricePerLiter: totalLiters > 0 ? totalCost / totalLiters : null,
-    costPerKm: distance > 0 ? costInRange / distance : null,
+    // Measured tank by tank when possible, so gaps in the log do not make fuel look cheaper.
+    costPerKm: segDistance > 0 ? segCost / segDistance : distance > 0 ? costInRange / distance : null,
   };
 }
 

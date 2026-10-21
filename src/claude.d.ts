@@ -29,6 +29,15 @@ interface ClaudeDb {
 interface ClaudeUser {
   id(): Promise<string | null>;
   isOwner(): Promise<boolean>;
+  /** Whether this viewer may change the page's shared records; null when not told. */
+  can(capability: 'data.write'): Promise<boolean | null>;
+  /** Names for person ids; an unknown id gets an entry with an empty name. */
+  profiles(ids: readonly string[]): Promise<Record<string, { id: string; name: string; isMe: boolean }>>;
+}
+
+interface ClaudeSample {
+  json<T = unknown>(input: string, options?: { images?: Blob[]; cache?: boolean; signal?: AbortSignal }): Promise<T>;
+  limits(): Promise<{ maxPromptBytes: number; images?: { maxCount: number; maxInputBytes: number; mediaTypes: string[] } }>;
 }
 
 interface ClaudeDownloads {
@@ -45,6 +54,7 @@ interface ClaudeCapabilities {
   db: ClaudeDb;
   user: ClaudeUser;
   downloads: ClaudeDownloads;
+  sample: ClaudeSample;
 }
 
 interface Window {

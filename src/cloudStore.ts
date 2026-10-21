@@ -6,12 +6,17 @@ import { EMPTY, loadLocal, saveLocal, type SyncStatus } from './storeShared';
 type Collection = keyof AppData;
 
 /**
- * Where the records live. Declared owner-only on publish
- * (`rules: [{path: "records", read: "owner", write: "owner"}]`), so only the
- * page's owner can read or change them, and Claude can read them for the
- * weekly email acting as that owner.
+ * Where the records live. Declared on publish as
+ * `rules: [{path: "records", read: "interact", write: "interact"}]`: the
+ * owner and the people they share the page with (allowed to use it) read and
+ * change the same records; view-only visitors cannot. Claude reads them for
+ * the weekly email acting as the owner.
  */
 export const RECORDS = 'records';
+
+const PENDING_KEY = 'car-maintenance:cloud-pending';
+const CACHE_KEY = 'car-maintenance:cloud-cache';
+const RETRY_MS = 15_000;
 
 /** One document per record, so edits on two devices touch different documents. */
 const docId = (collection: Collection, id: string) => `${collection}~${id}`;
@@ -27,10 +32,38 @@ function isRow(value: unknown): value is Row {
   return !!v && COLLECTIONS.includes(v.kind) && typeof v.item?.id === 'string' && typeof v.order === 'number';
 }
 
+/** A write that failed for good (no permission, invalid), as opposed to a dropped connection. */
+const isFinal = (e: unknown) => ['permission_denied', 'not_granted', 'invalid_argument', 'not_writer', 'forbidden'].includes((e as { code?: string })?.code ?? '');
+
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? '') as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage full or blocked: only the offline safety net is lost.
+  }
+}
+
+/** Builds the app's data from stored rows, oldest first. */
+function toData(rows: Map<string, Row>): AppData {
+  const next = emptyData();
+  for (const row of [...rows.values()].sort((a, b) => a.order - b.order)) (next[row.kind] as unknown[]).push(row.item);
+  return next;
+}
+
 /**
- * App data kept in the claude.ai page's database, so it follows the owner's
- * account across devices. Anyone else who opens the page, and a signed-out
- * visit, uses this browser's storage instead.
+ * App data kept in the claude.ai page's database, so it follows the account
+ * across devices and is shared with the people the page is shared with.
+ * Changes are queued in this browser until the database confirms them, so a
+ * fill-up added with no signal is sent once the connection is back. A
+ * visitor who may not change the records uses this browser's storage.
  */
 export function useCloudData() {
   const [data, setData] = useState<AppData>(EMPTY);
@@ -39,53 +72,120 @@ export function useCloudData() {
 
   const dataRef = useRef(data);
   const col = useRef<ClaudeCollectionRef | null>(null);
-  /** Display order of each stored document, so lists keep the order things were added in. */
-  const order = useRef(new Map<string, number>());
-  const writing = useRef(0);
-  const failed = useRef(false);
-  const perDoc = useRef(new Map<string, Promise<void>>());
+  /** The records as last read from the database. */
+  const base = useRef(new Map<string, Row>());
+  /** Changes not confirmed yet: the row to store, or null to delete. */
+  const pending = useRef(new Map<string, Row | null>(readJson<[string, Row | null][]>(PENDING_KEY, [])));
+  const inflight = useRef(new Set<string>());
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const offline = useRef(false);
 
   const commit = useCallback((next: AppData) => {
     dataRef.current = next;
     setData(next);
   }, []);
 
-  const applySnapshot = useCallback(
-    (snap: ClaudeQuerySnapshot) => {
-      const rows: Row[] = [];
-      for (const d of snap.docs) {
-        const body = d.data();
-        if (isRow(body)) rows.push(body);
-      }
-      rows.sort((a, b) => a.order - b.order);
-      const next = emptyData();
-      order.current = new Map();
-      for (const row of rows) {
-        // Snapshots are frozen; the app treats records as plain values.
-        (next[row.kind] as unknown[]).push(structuredClone(row.item));
-        order.current.set(docId(row.kind, row.item.id), row.order);
-      }
-      commit(next);
+  /** What the app shows: the stored records with the unsent changes on top. */
+  const view = useCallback(() => {
+    const rows = new Map(base.current);
+    for (const [key, row] of pending.current) {
+      if (row) rows.set(key, row);
+      else rows.delete(key);
+    }
+    return rows;
+  }, []);
+
+  const savePending = () => writeJson(PENDING_KEY, [...pending.current]);
+
+  const refreshStatus = useCallback(() => {
+    setStatus(offline.current ? 'offline' : pending.current.size || inflight.current.size ? 'saving' : 'synced');
+  }, []);
+
+  const applyRows = useCallback(
+    (rows: Map<string, Row>) => {
+      base.current = rows;
+      writeJson(CACHE_KEY, [...rows]);
+      commit(toData(view()));
     },
-    [commit],
+    [commit, view],
   );
+
+  const readSnapshot = (snap: ClaudeQuerySnapshot) => {
+    const rows = new Map<string, Row>();
+    for (const d of snap.docs) {
+      const body = d.data();
+      // Snapshots are frozen; the app treats records as plain values.
+      if (isRow(body)) rows.set(d.id, structuredClone(body));
+    }
+    return rows;
+  };
+
+  const flushRef = useRef<() => void>(() => {});
+
+  /** Sends every queued change; what fails because of the connection stays queued for the next try. */
+  const flush = useCallback(() => {
+    const c = col.current;
+    if (!c) return;
+    for (const [key, row] of pending.current) {
+      if (inflight.current.has(key)) continue;
+      inflight.current.add(key);
+      const run = row ? c.doc(key).set({ ...row }) : c.doc(key).delete();
+      run
+        .then(() => {
+          offline.current = false;
+          if (row) base.current.set(key, row);
+          else base.current.delete(key);
+          // A newer change to the same record may have been queued meanwhile.
+          if (pending.current.get(key) === row) pending.current.delete(key);
+        })
+        .catch((e) => {
+          if (isFinal(e)) {
+            console.error('Could not save', key, e);
+            pending.current.delete(key);
+            commit(toData(view()));
+          } else {
+            offline.current = true;
+            retryTimer.current ??= setTimeout(() => {
+              retryTimer.current = null;
+              flushRef.current();
+            }, RETRY_MS);
+          }
+        })
+        .finally(() => {
+          inflight.current.delete(key);
+          savePending();
+          if (pending.current.size && !inflight.current.size && !offline.current) flushRef.current();
+          refreshStatus();
+        });
+    }
+    refreshStatus();
+  }, [commit, refreshStatus, view]);
+
+  flushRef.current = flush;
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
     void (async () => {
       const [db, user] = await Promise.all([window.claude!.use('db'), window.claude!.use('user')]);
-      const [uid, isOwner] = await Promise.all([user?.id(), user?.isOwner()]);
+      const [uid, isOwner, canWrite] = await Promise.all([user?.id(), user?.isOwner(), user?.can('data.write')]);
       if (cancelled) return;
-      if (!db || !isOwner) {
+      if (!db || (!isOwner && canWrite === false)) {
         setBackend('local');
         commit(loadLocal());
         setStatus('local');
         return;
       }
       col.current = db.collection(RECORDS);
+      // Shown straight away, and all there is while offline.
+      const cached = readJson<[string, Row][]>(CACHE_KEY, []);
+      if (cached.length || pending.current.size) {
+        base.current = new Map(cached.filter(([, r]) => isRow(r)));
+        commit(toData(view()));
+        setStatus(pending.current.size ? 'saving' : 'synced');
+      }
       // The first claude.ai version kept records in the owner's private area; copy them over once.
-      if (uid) {
+      if (uid && isOwner) {
         try {
           const [current, old] = await Promise.all([col.current.get(), db.collection(`data/users/${uid}`).get()]);
           if (current.docs.length === 0 && old.docs.length > 0) {
@@ -101,84 +201,57 @@ export function useCloudData() {
       if (cancelled) return;
       unsubscribe = col.current.onSnapshot(
         (snap) => {
-          // While our own writes are in flight the snapshot can lag behind them.
-          if (writing.current > 0) return;
-          applySnapshot(snap);
-          setStatus(failed.current ? 'offline' : 'synced');
+          offline.current = false;
+          applyRows(readSnapshot(snap));
+          flushRef.current();
+          refreshStatus();
         },
-        () => setStatus('offline'),
+        () => {
+          offline.current = true;
+          setStatus('offline');
+        },
       );
     })();
+    const online = () => {
+      offline.current = false;
+      flushRef.current();
+    };
+    window.addEventListener('online', online);
     return () => {
       cancelled = true;
       unsubscribe?.();
+      window.removeEventListener('online', online);
+      if (retryTimer.current) clearTimeout(retryTimer.current);
     };
-  }, [applySnapshot, commit]);
+  }, [applyRows, commit, refreshStatus, view]);
 
   useEffect(() => {
     if (backend === 'local' && status === 'local') saveLocal(data);
   }, [backend, status, data]);
 
-  /** Runs one write per document at a time, retrying a transient failure once. */
-  const write = useCallback(
-    (key: string, run: () => Promise<void>) => {
-      writing.current++;
-      setStatus('saving');
-      const attempt = async () => {
-        try {
-          await run();
-        } catch (e) {
-          if ((e as { code?: string }).code !== 'unavailable') throw e;
-          await new Promise((r) => setTimeout(r, 500 + Math.random() * 500));
-          await run();
-        }
-      };
-      const job = (perDoc.current.get(key) ?? Promise.resolve())
-        .then(attempt)
-        .catch((e) => {
-          failed.current = true;
-          console.error('Could not save', key, e);
-        })
-        .finally(async () => {
-          if (perDoc.current.get(key) === job) perDoc.current.delete(key);
-          if (--writing.current === 0 && col.current) {
-            // Re-read once everything is written, so the view matches what is stored.
-            try {
-              applySnapshot(await col.current.get());
-            } catch {
-              failed.current = true;
-            }
-            setStatus(failed.current ? 'offline' : 'synced');
-            failed.current = false;
-          }
-        });
-      perDoc.current.set(key, job);
-    },
-    [applySnapshot],
-  );
-
-  const send = useCallback(
+  const queue = useCallback(
     (ops: Op[]) => {
-      const c = col.current;
-      if (!c) return;
+      const rows = view();
+      const nextOrder = () => Date.now() + rows.size / 1000;
       for (const op of ops) {
         if (op.kind === 'replace') {
           const keep = new Set(COLLECTIONS.flatMap((k) => op.data[k].map((x) => docId(k, x.id))));
-          for (const key of order.current.keys()) if (!keep.has(key)) write(key, () => c.doc(key).delete());
-          send(COLLECTIONS.flatMap((k) => op.data[k].map((item) => ({ kind: 'upsert', collection: k, item }) as Op)));
+          for (const key of rows.keys()) if (!keep.has(key)) pending.current.set(key, null);
+          queue(COLLECTIONS.flatMap((k) => op.data[k].map((item) => ({ kind: 'upsert', collection: k, item }) as Op)));
         } else if (op.kind === 'upsert') {
           const key = docId(op.collection, op.item.id);
-          if (!order.current.has(key)) order.current.set(key, Date.now() + order.current.size / 1000);
-          const row: Row = { kind: op.collection, order: order.current.get(key)!, item: op.item };
-          write(key, () => c.doc(key).set({ ...row }));
+          const row: Row = { kind: op.collection, order: rows.get(key)?.order ?? nextOrder(), item: op.item };
+          rows.set(key, row);
+          pending.current.set(key, row);
         } else {
           const key = docId(op.collection, op.id);
-          order.current.delete(key);
-          write(key, () => c.doc(key).delete());
+          rows.delete(key);
+          pending.current.set(key, null);
         }
       }
+      savePending();
     },
-    [write],
+    [view],
   );
 
   const update = useCallback(
@@ -186,22 +259,28 @@ export function useCloudData() {
       const prev = dataRef.current;
       const next = fn(prev);
       commit(next);
-      if (col.current) send(diffOps(prev, next));
+      if (!col.current) return;
+      queue(diffOps(prev, next));
+      flush();
     },
-    [commit, send],
+    [commit, queue, flush],
   );
 
   const replace = useCallback(
     (next: AppData) => {
       commit(next);
-      if (col.current) send([{ kind: 'replace', data: next }]);
+      if (!col.current) return;
+      queue([{ kind: 'replace', data: next }]);
+      flush();
     },
-    [commit, send],
+    [commit, queue, flush],
   );
 
   const retry = useCallback(async () => {
-    if (col.current) applySnapshot(await col.current.get());
-  }, [applySnapshot]);
+    offline.current = false;
+    if (col.current) applyRows(readSnapshot(await col.current.get()));
+    flush();
+  }, [applyRows, flush]);
 
   return { data, status, backend, update, replace, retry };
 }

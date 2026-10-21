@@ -24,13 +24,26 @@ A small web app to track your car's fuel consumption, services and upcoming main
 - **Tires**: brand, size, season, when and at what odometer they were fitted, and the distance driven on each set. Fitting new tires marks the current set as removed. "Tire rotation" is a service type with its own reminder.
 - **Costs**: spending per month (fuel and maintenance), a yearly table with cost per km, the fuel price over time and a station comparison (average price paid per liter, cheapest station).
 
+- **Reading receipts**: take a photo of the fuel receipt and the fill-up form fills itself in (liters, price, total, station, date). On claude.ai Claude reads it; with the home server it needs a Claude API key (see below). Always check the values before saving.
+- **Quick fill-up**: a new fill-up starts with your last station and price. With the home server, add `http://<PC address>:8080/?add=fuel` (or `?add=receipt`) to your phone's home screen to open straight on a new fill-up.
+- **Works offline**: changes made without a connection are kept on the device and sent when the connection is back, on claude.ai and with the home server. The app also reopens with your data while the server is out of reach.
+- **Unusual consumption alert**: a warning on the overview (and by email with the home server) when a tank uses more fuel than usual, 15% by default, set in Settings. Often an early sign of low tire pressure, a clogged air filter, dragging brakes or injector trouble.
+- **Spending forecast**: the next 12 months of fuel (from your driving pace and cost per km) and each maintenance item that falls due, priced from the reminder's usual cost or the last service of that type.
+- **Monthly fuel budget**: per car, with a meter on the overview and a warning (and an email) when it gets close or goes over.
+- **Fault log**: warning lights, noises, leaks and OBD codes, linked to the repair that fixed them. A problem that comes back is marked "Seen 2 times".
+- **Garage book**: garages and mechanics with phone, address, your rating, the jobs they did and what they charged; quotes for the same job side by side, cheapest first.
+- **Trips**: work or personal, with the distance from two odometer readings if you like. Each year shows the work share of the driving, the fuel cost of work trips and the work share of all costs, for expense claims.
+- **Family use**: everyone shares the same records (home Wi-Fi, or a shared claude.ai page) and each fill-up, service and trip shows who logged it, with totals per driver.
+- **Compare cars**: consumption, fuel per km, all costs per km, distance per week and 12-month spending for each car.
+- **Spreadsheets**: export fill-ups, services and trips as CSV for Excel (French uses `;` and decimal commas), and import them from another app or an old sheet. Columns are recognised in English or French; rows already logged are skipped.
+
 Photos are stored on your PC in `CarMaintenance/files` with the home server, in the page's own storage on claude.ai, and inside the data in the single-file version (keep them small there: browser storage is limited).
 
 Works on desktop and phone (bottom tab bar on small screens).
 
 ## Use it on claude.ai (no PC needed)
 
-Open **https://claude.ai/artifact/D1eAVvzCYyEhfd9KmmMVQB** while signed in to Claude, on any device. Your data is saved privately in your Claude account, so it is the same on your phone and your PC. Email reminders need the home server below; everything else works on claude.ai.
+Open **https://claude.ai/artifact/D1eAVvzCYyEhfd9KmmMVQB** while signed in to Claude, on any device. Your data is saved in your Claude account, so it is the same on your phone and your PC. To share it with family, use the page's Share menu and let them use it: they add to the same records from their own Claude account. Email reminders need the home server below; everything else works on claude.ai.
 
 To update that page after changing the code: `npm run build:claude`, then publish `dist-claude/car-maintenance.html` to the same artifact.
 
@@ -80,6 +93,14 @@ Every Sunday evening (you can pick the day) you also get a **weekly check-in** a
 
 You get an email when a reminder is 30 days away (you can change this), again a week before, and when it is overdue, never twice for the same thing. Emails are sent by the PC running the server, between 8:00 and midnight, so it must be on. The API key is stored only on that PC.
 
+### Reading receipts
+
+Create a Claude API key at https://console.anthropic.com (**API keys → Create key**, with some credit on the account), then paste it in **Settings → Reading receipts**. A "Fill in from a receipt photo" button then appears when you add a fill-up. Each receipt costs about one cent. The key is stored only on the PC.
+
+### Phone shortcut and offline use
+
+**Settings → Phone shortcut** shows two links (new fill-up, new fill-up from a receipt). Open one on your phone and add it to the home screen. The app keeps a copy of your data on the phone: fill-ups added while away from the Wi-Fi are saved and sent once you are back. Browsers only let a page reopen with no connection at all over https (or on the PC itself as `localhost`), so on the phone keep the page open in a tab when you leave home.
+
 ### Your data is safe
 
 - **Where:** `C:\Users\<you>\CarMaintenance` on Windows (`~/CarMaintenance` on Mac/Linux), outside the app folder, so updating or re-downloading the app never touches it. Data from older versions (in the app's `data` folder) is moved there automatically on first start.
@@ -104,7 +125,7 @@ You get an email when a reminder is 30 days away (you can change this), again a 
 ```bash
 npm install
 npm run dev      # dev server; run `npm start` too so data requests reach the API
-npm test         # unit tests (consumption and reminder logic)
+npm test         # unit tests (consumption, reminders, forecast, CSV, alerts)
 npm run lint
 npm run build    # production build in dist/
 npm run build:single  # standalone car-maintenance.html (open it directly, no server)

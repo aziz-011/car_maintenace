@@ -11,6 +11,10 @@ const PATHS = {
   calendar: 'M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4',
   chart: 'M4 20V4 M4 20h16 M8 16v-5 M12 16V8 M16 16v-3',
   car: 'M5 17h14 M3 17v-4l2-5a2 2 0 0 1 2-1h10a2 2 0 0 1 2 1l2 5v4 M3 13h18 M7 17v2 M17 17v2 M7.5 14.5h.01 M16.5 14.5h.01',
+  camera: 'M4 8h3l2-3h6l2 3h3v11H4z M12 10a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z',
+  alert: 'M12 4l9 16H3z M12 10v4 M12 17h.01',
+  route: 'M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M8 17h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7',
+  phone: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z',
 } as const;
 
 export type IconName = keyof typeof PATHS;

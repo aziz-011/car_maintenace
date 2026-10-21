@@ -7,9 +7,10 @@ interface Props {
   onAdd: () => void;
   onEdit: (e: ServiceEntry) => void;
   onDelete: (e: ServiceEntry) => void;
+  nameOf: (driver?: string) => string;
 }
 
-export function ServicesView({ entries, onAdd, onEdit, onDelete }: Props) {
+export function ServicesView({ entries, onAdd, onEdit, onDelete, nameOf }: Props) {
   const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date) || b.odometer - a.odometer);
   const total = entries.reduce((s, e) => s + e.cost, 0);
 
@@ -33,6 +34,7 @@ export function ServicesView({ entries, onAdd, onEdit, onDelete }: Props) {
                   <span className="muted">
                     {fmtDate(e.date)} · {fmtKm(e.odometer)}
                     {e.shop && ` · ${e.shop}`}
+                    {e.driver && ` · ${nameOf(e.driver)}`}
                   </span>
                   {e.parts && e.parts.length > 0 && (
                     <ul className="chips small">

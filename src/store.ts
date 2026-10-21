@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCloudData } from './cloudStore';
 import { EMPTY, loadLocal, saveLocal, type SyncStatus } from './storeShared';
-import { diffOps, type Op } from './sync';
+import { applyOps, diffOps, type Op } from './sync';
 import type { AppData } from './types';
+
+import { isAppData } from './storeShared';
 
 export { isAppData, newId, today, type SyncStatus } from './storeShared';
 
 const PENDING_KEY = 'car-maintenance:pending';
+/** The server's data as last seen, so the app still opens with your data when the server can't be reached. */
+const CACHE_KEY = 'car-maintenance:server-cache';
 const POLL_MS = 15_000;
 
 /** Changes not yet confirmed by the server, kept so closing the page never loses them. */
@@ -30,6 +34,23 @@ function savePending(ops: Op[]) {
 interface ServerState {
   version: number;
   data: AppData;
+}
+
+function saveCache(state: ServerState) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ version: state.version, data: state.data }));
+  } catch {
+    // Too large or blocked: the app just can't open offline.
+  }
+}
+
+function loadCache(): ServerState | null {
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null');
+    return cached && isAppData(cached.data) ? cached : null;
+  } catch {
+    return null;
+  }
 }
 
 class NoServer extends Error {}
@@ -62,6 +83,27 @@ function useServerData() {
     setData(next);
   }, []);
 
+  /**
+   * The server did not answer. Once connected, that only means changes wait;
+   * when opening the app, the last copy is shown (with the unsent changes)
+   * if there is one, and changes keep queueing.
+   */
+  const unreachable = useCallback(() => {
+    if (mode.current === null) {
+      const cached = loadCache();
+      if (cached) {
+        mode.current = 'server';
+        version.current = cached.version;
+        try {
+          commit(applyOps(cached.data, pending.current));
+        } catch {
+          commit(cached.data);
+        }
+      }
+    }
+    setStatus(mode.current === 'server' ? 'offline' : 'unreachable');
+  }, [commit]);
+
   /** Sends queued changes one batch at a time; failures stay queued for the next try. */
   const flush = useCallback(async () => {
     if (inflight.current || pending.current.length === 0) return;
@@ -78,6 +120,7 @@ function useServerData() {
       });
       mode.current = 'server';
       version.current = state.version;
+      saveCache(state);
       // Newer local edits are still queued; showing the server copy now would hide them.
       if (pending.current.length === 0) commit(state.data);
       ok = true;
@@ -90,7 +133,7 @@ function useServerData() {
         ok = true;
       } else {
         pending.current = [...ops, ...pending.current];
-        setStatus(mode.current === 'server' ? 'offline' : 'unreachable');
+        unreachable();
       }
     } finally {
       inflight.current = false;
@@ -99,7 +142,7 @@ function useServerData() {
     }
     if (ok && pending.current.length) void flush();
     else if (ok && version.current === -1) void pullRef.current();
-  }, [commit]);
+  }, [commit, unreachable]);
 
   const pullRef = useRef<() => Promise<void>>(async () => {});
 
@@ -110,6 +153,7 @@ function useServerData() {
     try {
       const state = await fetchState('/api/data');
       mode.current = 'server';
+      saveCache(state);
       if (state.version !== version.current && pending.current.length === 0 && !inflight.current) {
         version.current = state.version;
         commit(state.data);
@@ -121,10 +165,10 @@ function useServerData() {
         commit(loadLocal());
         setStatus('local');
       } else {
-        setStatus(mode.current === 'server' ? 'offline' : 'unreachable');
+        unreachable();
       }
     }
-  }, [commit, flush]);
+  }, [commit, flush, unreachable]);
 
   pullRef.current = pull;
 

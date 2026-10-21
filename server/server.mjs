@@ -8,6 +8,7 @@ import { homedir, networkInterfaces } from 'node:os';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sendEmail, PROVIDERS } from './email.mjs';
+import { readReceipt } from './receipt.mjs';
 import { collectAlerts, reminderEmail, weeklyCheckinEmail } from './notify.mjs';
 import { calendarItems, toIcs } from '../src/calendar.ts';
 import { applyOps, emptyData, isAppData, normalizeData } from './ops.mjs';
@@ -66,7 +67,7 @@ const DEFAULT_EMAIL = {
 
 /** { version, updatedAt, data } — version increases on every change. */
 let store = { version: 0, updatedAt: null, data: emptyData() };
-let settings = { email: { ...DEFAULT_EMAIL } };
+let settings = { email: { ...DEFAULT_EMAIL }, ai: { apiKey: '' } };
 /** { sent: { [alertKey]: isoDate }, lastBackupEmail: isoDate | null, lastCheckin: 'YYYY-MM-DD' | null } */
 let notifyState = { sent: {}, lastBackupEmail: null, lastCheckin: null };
 
@@ -96,7 +97,8 @@ async function load() {
     if (!isAppData(parsed.data)) throw new Error(`${DATA_FILE} is not valid car data`);
     store = { ...parsed, data: normalizeData(parsed.data) };
   }
-  settings = { email: { ...DEFAULT_EMAIL, ...(await readJson(SETTINGS_FILE, {})).email } };
+  const saved = await readJson(SETTINGS_FILE, {});
+  settings = { email: { ...DEFAULT_EMAIL, ...saved.email }, ai: { apiKey: '', ...saved.ai } };
   notifyState = { ...notifyState, ...(await readJson(NOTIFY_FILE, {})) };
 }
 
@@ -125,13 +127,26 @@ function save(next) {
   });
 }
 
-/** Settings as sent to the browser: the API key itself never leaves the PC. */
+const keyInfo = (key) => ({ hasKey: !!key, keyHint: key ? `…${key.slice(-4)}` : '' });
+
+/** Settings as sent to the browser: the API keys themselves never leave the PC. */
 function publicSettings() {
   const { apiKey, ...email } = settings.email;
   return {
-    email: { ...email, hasKey: !!apiKey, keyHint: apiKey ? `…${apiKey.slice(-4)}` : '' },
+    email: { ...email, ...keyInfo(apiKey) },
+    ai: keyInfo(settings.ai.apiKey),
     providers: Object.fromEntries(Object.entries(PROVIDERS).map(([id, p]) => [id, p.label])),
   };
+}
+
+function updateAiSettings(body) {
+  if (body?.removeKey) settings.ai = { apiKey: '' };
+  else {
+    const key = typeof body?.apiKey === 'string' ? body.apiKey.trim() : '';
+    if (!key.startsWith('sk-ant-')) throw new Error('This does not look like a Claude API key (it starts with sk-ant-).');
+    settings.ai = { apiKey: key };
+  }
+  return queueWrite(() => writeJson(SETTINGS_FILE, settings));
 }
 
 function updateSettings(body) {
@@ -144,6 +159,7 @@ function updateSettings(body) {
   if (!Number.isInteger(day) || day < 0 || day > 6) throw new Error('Check-in day must be 0 (Sunday) to 6 (Saturday)');
   const str = (v, old) => (typeof v === 'string' ? v.trim() : old);
   settings = {
+    ...settings,
     email: {
       enabled: e.enabled === undefined ? settings.email.enabled : !!e.enabled,
       provider: e.provider ?? settings.email.provider,
@@ -277,6 +293,18 @@ const routes = {
     return [200, { id, url: `/files/${id}${ext}` }];
   },
   'GET /api/settings': async () => [200, publicSettings()],
+  'GET /api/settings/ai': async () => [200, publicSettings()],
+  'PUT /api/settings/ai': async (req) => {
+    await updateAiSettings(await readBody(req));
+    return [200, publicSettings()];
+  },
+  'POST /api/scan': async (req) => {
+    if (!settings.ai.apiKey) throw new Error('Add a Claude API key in Settings → Reading receipts first.');
+    const type = (req.headers['content-type'] ?? '').split(';')[0].trim();
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(type)) throw new Error('Send a JPEG, PNG or WebP photo.');
+    const photo = await readRaw(req, MAX_FILE);
+    return [200, await readReceipt(settings.ai.apiKey, photo, type)];
+  },
   'PUT /api/settings': async (req) => {
     await updateSettings(await readBody(req));
     return [200, publicSettings()];

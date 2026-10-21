@@ -14,6 +14,9 @@ html = html.replace(
   `href="data:image/svg+xml,${encodeURIComponent(read('icon.svg'))}"`,
 );
 
+// The installable-app links need a server; the single file has none.
+html = html.replace(/\s*<link rel="(manifest|apple-touch-icon)"[^>]*>/g, '');
+
 if (/(src|href)="\/(assets|icon)/.test(html)) throw new Error('Unresolved asset reference left in HTML');
 writeFileSync(new URL('../car-maintenance.html', import.meta.url), html);
 console.log('Wrote car-maintenance.html');

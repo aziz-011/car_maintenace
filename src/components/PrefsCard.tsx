@@ -1,4 +1,5 @@
 import { t } from '../i18n';
+import { DEFAULT_CONSUMPTION_ALERT } from '../insights';
 import { CURRENCIES, type Prefs } from '../types';
 
 interface Props {
@@ -48,6 +49,20 @@ export function PrefsCard({ prefs, onChange }: Props) {
             </select>
           </label>
         </div>
+        <label>
+          {t('Warn when a tank uses more fuel than usual')}
+          <select
+            value={prefs.consumptionAlert ?? DEFAULT_CONSUMPTION_ALERT}
+            onChange={(e) => set('consumptionAlert', Number(e.target.value))}
+          >
+            {[10, 15, 20, 30].map((n) => (
+              <option key={n} value={n}>
+                {t('{n}% more', { n })}
+              </option>
+            ))}
+            <option value={0}>{t('Never')}</option>
+          </select>
+        </label>
       </div>
     </section>
   );

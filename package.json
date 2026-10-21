@@ -16,6 +16,7 @@
     "build:claude": "npm run build && node scripts/build-claude.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
