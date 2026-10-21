@@ -28,7 +28,7 @@ export const CAR_MODELS: Record<string, string[]> = {
   'Chrysler': ['300', 'Pacifica', 'Voyager'],
   'Citroën': [
     'Berlingo', 'C-Elysée', 'C1', 'C3', 'C3 Aircross', 'C4', 'C4 Cactus', 'C4 X', 'C5', 'C5 Aircross', 'C5 X',
-    'DS3', 'Jumper', 'Jumpy', 'Nemo', 'SpaceTourer', 'ë-C3', 'ë-C4', 'Ami',
+    'DS3', 'Jumper', 'Jumpy', 'Nemo', 'Saxo', 'SpaceTourer', 'Xsara', 'ë-C3', 'ë-C4', 'Ami',
   ],
   'Cupra': ['Ateca', 'Born', 'Formentor', 'Leon', 'Tavascan', 'Terramar'],
   'Dacia': ['Bigster', 'Dokker', 'Duster', 'Jogger', 'Lodgy', 'Logan', 'Sandero', 'Sandero Stepway', 'Spring'],
@@ -101,7 +101,7 @@ export const CAR_MODELS: Record<string, string[]> = {
     'Movano', 'Vivaro', 'Zafira',
   ],
   'Peugeot': [
-    '107', '108', '206', '207', '208', '2008', '301', '307', '308', '3008', '407', '408', '5008', '508',
+    '107', '108', '206', '207', '208', '2008', '301', '307', '308', '3008', '406', '407', '408', '5008', '508',
     'Bipper', 'Boxer', 'Expert', 'Landtrek', 'Partner', 'Rifter', 'Traveller', 'e-208', 'e-2008',
   ],
   'Polestar': ['2', '3', '4'],

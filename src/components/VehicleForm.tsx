@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { enginesFor, generationLabel, generationsFor } from '../data/generations';
 import { CAR_MAKES, modelsFor } from '../data/vehicles';
 import { newId } from '../store';
 import { DEFAULT_OIL_INTERVAL_KM, type Vehicle } from '../types';
@@ -16,15 +17,33 @@ export function VehicleForm({ vehicle, onSave, onClose }: Props) {
   const [name, setName] = useState(vehicle?.name ?? '');
   const [make, setMake] = useState(vehicle?.make ?? '');
   const [model, setModel] = useState(vehicle?.model ?? '');
+  const [generation, setGeneration] = useState(vehicle?.generation ?? '');
+  const [engine, setEngine] = useState(vehicle?.engine ?? '');
   const [year, setYear] = useState(vehicle?.year?.toString() ?? '');
   const [plate, setPlate] = useState(vehicle?.plate ?? '');
   const [odometer, setOdometer] = useState(vehicle?.initialOdometer.toString() ?? '');
   const [oilKm, setOilKm] = useState(DEFAULT_OIL_INTERVAL_KM.toString());
 
-  // A model from the previous make's list no longer applies.
+  const generations = generationsFor(make, model);
+  const gen = generations.find((g) => g.name === generation);
+  const engineGroups = enginesFor(gen);
+  const yearNum = Number(year);
+  const yearOutside = gen && yearNum > 1900 && (yearNum < gen.from || (gen.to !== undefined && yearNum > gen.to));
+
+  // Choices that belonged to the previous make, model or generation no longer apply.
   const changeMake = (value: string) => {
-    if (!modelsFor(value).includes(model)) setModel('');
+    if (!modelsFor(value).includes(model)) changeModel('');
     setMake(value);
+  };
+  const changeModel = (value: string) => {
+    setModel(value);
+    setGeneration('');
+    setEngine('');
+  };
+  const changeGeneration = (label: string) => {
+    const next = generations.find((g) => generationLabel(g) === label);
+    setGeneration(next?.name ?? label);
+    if (!enginesFor(next).some((group) => group.options.includes(engine))) setEngine('');
   };
 
   const submit = (e: FormEvent) => {
@@ -32,9 +51,11 @@ export function VehicleForm({ vehicle, onSave, onClose }: Props) {
     onSave(
       {
         id: vehicle?.id ?? newId(),
-        name: name.trim() || `${make} ${model}`.trim(),
+        name: name.trim() || `${make} ${generation.trim() || model}`.trim(),
         make: make.trim(),
         model: model.trim(),
+        generation: generation.trim() || undefined,
+        engine: engine.trim() || undefined,
         year: year ? Number(year) : undefined,
         plate: plate.trim() || undefined,
         initialOdometer: Number(odometer) || 0,
@@ -66,17 +87,49 @@ export function VehicleForm({ vehicle, onSave, onClose }: Props) {
                 key={make}
                 required
                 value={model}
-                onChange={setModel}
+                onChange={changeModel}
                 options={modelsFor(make)}
                 otherPlaceholder="Model"
               />
             )}
           </label>
         </div>
+        {model && (
+          <label>
+            Generation
+            <SelectOrOther
+              key={`${make}|${model}`}
+              value={gen ? generationLabel(gen) : generation}
+              onChange={changeGeneration}
+              options={generations.map(generationLabel)}
+              placeholder="Choose the generation…"
+              otherPlaceholder="e.g. Mk4, phase 2"
+            />
+          </label>
+        )}
+        {model && (
+          <label>
+            Engine
+            <SelectOrOther
+              key={generation}
+              value={engine}
+              onChange={setEngine}
+              groups={engineGroups.length ? engineGroups : undefined}
+              placeholder={gen ? 'Choose the engine…' : undefined}
+              otherPlaceholder="e.g. 1.6 TDI diesel · 105 hp"
+            />
+            {!gen && generations.length > 0 && <span className="hint">Choose the generation first to see its engines.</span>}
+          </label>
+        )}
         <div className="row">
           <label>
             Year
             <input type="number" min="1900" max="2100" value={year} onChange={(e) => setYear(e.target.value)} />
+            {yearOutside && (
+              <span className="hint">
+                {gen.name} was mostly sold {gen.from}–{gen.to ?? 'today'}. Check the year or the generation.
+              </span>
+            )}
           </label>
           <label>
             Plate

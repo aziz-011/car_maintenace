@@ -3,6 +3,10 @@ export interface Vehicle {
   name: string;
   make: string;
   model: string;
+  /** e.g. "Golf IV (Mk4)". */
+  generation?: string;
+  /** e.g. "1.9 TDI diesel · 110 hp". */
+  engine?: string;
   year?: number;
   plate?: string;
   initialOdometer: number;

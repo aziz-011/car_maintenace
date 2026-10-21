@@ -89,7 +89,8 @@ export function SettingsView({ data, onAddVehicle, onEditVehicle, onDeleteVehicl
               <div>
                 <strong>{v.name}</strong>
                 <span className="muted">
-                  {[v.year, v.make, v.model].filter(Boolean).join(' ')}
+                  {[v.year, v.make, v.generation ?? v.model].filter(Boolean).join(' ')}
+                  {v.engine && ` · ${v.engine}`}
                   {v.plate && ` · ${v.plate}`}
                 </span>
               </div>
