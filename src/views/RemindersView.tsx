@@ -43,9 +43,7 @@ export function RemindersView({ statuses, onAdd, onEdit, onRenew, onDelete }: Pr
               <li key={r.id} className="list-item">
                 <div>
                   <strong>{r.type}</strong>
-                  {r.dueDate ? (
-                    <span className="muted">Due / expires {fmtDate(r.dueDate)}</span>
-                  ) : (
+                  {!r.dueDate && (
                     <>
                       <span className="muted">Every {every}</span>
                       <span className="muted">
