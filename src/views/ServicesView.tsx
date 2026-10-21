@@ -1,5 +1,6 @@
 import { fmtDate, fmtKm, fmtMoney } from '../format';
 import type { ServiceEntry } from '../types';
+import { t } from '../i18n';
 
 interface Props {
   entries: ServiceEntry[];
@@ -15,20 +16,20 @@ export function ServicesView({ entries, onAdd, onEdit, onDelete }: Props) {
   return (
     <section className="card">
       <div className="card-header">
-        <h3>Service history</h3>
+        <h3>{t('Service history')}</h3>
         <button className="btn primary" onClick={onAdd}>
-          + Service
+          {t('+ Service')}
         </button>
       </div>
       {sorted.length === 0 ? (
-        <p className="empty">No services logged yet.</p>
+        <p className="empty">{t('No services logged yet.')}</p>
       ) : (
         <>
           <ul className="list">
             {sorted.map((e) => (
               <li key={e.id} className="list-item">
                 <div>
-                  <strong>{e.type}</strong>
+                  <strong>{t(e.type)}</strong>
                   <span className="muted">
                     {fmtDate(e.date)} · {fmtKm(e.odometer)}
                     {e.shop && ` · ${e.shop}`}
@@ -37,7 +38,7 @@ export function ServicesView({ entries, onAdd, onEdit, onDelete }: Props) {
                     <ul className="chips small">
                       {e.parts.map((p) => (
                         <li key={p} className="chip">
-                          {p}
+                          {t(p)}
                         </li>
                       ))}
                     </ul>
@@ -48,17 +49,17 @@ export function ServicesView({ entries, onAdd, onEdit, onDelete }: Props) {
                   <span>{fmtMoney(e.cost)}</span>
                   <span className="row-actions">
                     <button className="link" onClick={() => onEdit(e)}>
-                      Edit
+                      {t('Edit')}
                     </button>
                     <button className="link danger" onClick={() => onDelete(e)}>
-                      Delete
+                      {t('Delete')}
                     </button>
                   </span>
                 </div>
               </li>
             ))}
           </ul>
-          <p className="total">Total: {fmtMoney(total)}</p>
+          <p className="total">{t('Total: {amount}', { amount: fmtMoney(total) })}</p>
         </>
       )}
     </section>

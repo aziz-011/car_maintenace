@@ -16,6 +16,16 @@ A small web app to track your car's fuel consumption, services and upcoming main
 - **Overview**: odometer, average and last-tank consumption, fuel cost per km, total spent, a consumption chart and recent activity.
 - **Backup**: on the home server, data is saved in one file on your PC with a daily backup. The single-file version saves in your browser. Both can export and import a JSON backup from Settings.
 
+- **Français / English**: switch the language in Settings (or on the welcome screen). Service types, parts and reminders are translated too.
+- **Currency and units**: TND (3 decimals) by default, or EUR, USD…; km or miles; L/100 km or km/L. Data is always stored in km and liters, so switching units never changes your history.
+- **Service plan per engine**: pick the generation and engine (e.g. Golf IV 1.9 TDI) and the Car tab suggests the usual maintenance items: timing belt or chain, filters, fluids, spark or glow plugs… Adjust the intervals and add them as reminders in one go. The intervals are typical values; check them against your owner's manual or garage.
+- **Receipt photos**: attach photos (or PDFs) to fill-ups and services. Photos are shrunk before saving.
+- **Car documents**: carte grise, insurance, visite technique report, vignette… with their number, dates and photos. An expiry date updates the matching reminder.
+- **Tires**: brand, size, season, when and at what odometer they were fitted, and the distance driven on each set. Fitting new tires marks the current set as removed. "Tire rotation" is a service type with its own reminder.
+- **Costs**: spending per month (fuel and maintenance), a yearly table with cost per km, the fuel price over time and a station comparison (average price paid per liter, cheapest station).
+
+Photos are stored on your PC in `CarMaintenance/files` with the home server, in the page's own storage on claude.ai, and inside the data in the single-file version (keep them small there: browser storage is limited).
+
 Works on desktop and phone (bottom tab bar on small screens).
 
 ## Use it on claude.ai (no PC needed)

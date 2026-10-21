@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
+import { distInput, distUnit, parseDist } from '../format';
 import { addMonths } from '../stats';
 import { newId, today } from '../store';
 import { COMPONENT_GROUPS, DOCUMENT_TYPES, SERVICE_TYPES, type Reminder } from '../types';
 import { Modal } from './Modal';
 import { SelectOrOther } from './SelectOrOther';
+import { plural, t } from '../i18n';
 
 const REMINDER_GROUPS = [
   { label: 'Documents & deadlines', options: DOCUMENT_TYPES },
@@ -30,10 +32,10 @@ export function ReminderForm({ vehicleId, reminder, initialType, currentOdometer
     reminder ? (reminder.dueDate ? 'date' : 'interval') : DOCUMENT_TYPES.includes(startType) ? 'date' : 'interval',
   );
   const [dueDate, setDueDate] = useState(reminder?.dueDate ?? '');
-  const [intervalKm, setIntervalKm] = useState(reminder?.intervalKm?.toString() ?? '');
+  const [intervalKm, setIntervalKm] = useState(distInput(reminder?.intervalKm));
   const [intervalMonths, setIntervalMonths] = useState(reminder?.intervalMonths?.toString() ?? '');
   const [lastDate, setLastDate] = useState(reminder?.lastDate ?? today());
-  const [lastOdometer, setLastOdometer] = useState(reminder?.lastOdometer.toString() ?? currentOdometer.toString());
+  const [lastOdometer, setLastOdometer] = useState(distInput(reminder?.lastOdometer ?? currentOdometer));
   const [error, setError] = useState('');
 
   // Paperwork usually has an expiry date; maintenance usually repeats.
@@ -57,10 +59,10 @@ export function ReminderForm({ vehicleId, reminder, initialType, currentOdometer
       vehicleId,
       type: type.trim(),
       dueDate: mode === 'date' ? dueDate : undefined,
-      intervalKm: mode === 'interval' && intervalKm ? Number(intervalKm) : undefined,
+      intervalKm: mode === 'interval' && intervalKm ? parseDist(intervalKm) : undefined,
       intervalMonths: mode === 'interval' && intervalMonths ? Number(intervalMonths) : undefined,
       lastDate: mode === 'interval' ? lastDate : (reminder?.lastDate ?? today()),
-      lastOdometer: mode === 'interval' ? Number(lastOdometer) || 0 : (reminder?.lastOdometer ?? currentOdometer),
+      lastOdometer: mode === 'interval' ? parseDist(lastOdometer) : (reminder?.lastOdometer ?? currentOdometer),
     });
   };
 
@@ -68,54 +70,54 @@ export function ReminderForm({ vehicleId, reminder, initialType, currentOdometer
     <Modal title={reminder ? 'Edit reminder' : 'Add reminder'} onClose={onClose}>
       <form onSubmit={submit} className="form">
         <label>
-          What
-          <SelectOrOther required value={type} onChange={changeType} groups={REMINDER_GROUPS} otherPlaceholder="Name" />
+          {t('What')}
+          <SelectOrOther required value={type} onChange={changeType} groups={REMINDER_GROUPS} otherPlaceholder={t('Name')} />
         </label>
 
-        <div className="segmented" role="radiogroup" aria-label="Reminder type">
+        <div className="segmented" role="radiogroup" aria-label={t('Reminder type')}>
           <button type="button" role="radio" aria-checked={mode === 'date'} onClick={() => setMode('date')}>
-            On a date
+            {t('On a date')}
           </button>
           <button type="button" role="radio" aria-checked={mode === 'interval'} onClick={() => setMode('interval')}>
-            Every X km / months
+            {t('Every X {unit} / months', { unit: distUnit() })}
           </button>
         </div>
 
         {mode === 'date' ? (
           <>
             <label>
-              Due / expires on
+              {t('Due / expires on')}
               <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </label>
             <div className="quick-actions">
               {[12, 24].map((m) => (
                 <button key={m} type="button" className="btn small" onClick={() => setDueDate(addMonths(today(), m))}>
-                  In {m / 12} year{m > 12 ? 's' : ''}
+                  {plural(m / 12, 'In {n} year', 'In {n} years')}
                 </button>
               ))}
             </div>
-            <p className="hint">For insurance, technical inspection, road tax… When you renew, edit the date or tap Renew.</p>
+            <p className="hint">{t('For insurance, technical inspection, road tax… When you renew, edit the date or tap Renew.')}</p>
           </>
         ) : (
           <>
-            <p className="hint">Resets when you log a service of this type, or one that replaced this part.</p>
+            <p className="hint">{t('Resets when you log a service of this type, or one that replaced this part.')}</p>
             <div className="row">
               <label>
-                Every (km)
+                {t('Every ({unit})', { unit: distUnit() })}
                 <input type="number" min="1" value={intervalKm} onChange={(e) => setIntervalKm(e.target.value)} placeholder="10000" />
               </label>
               <label>
-                Every (months)
+                {t('Every (months)')}
                 <input type="number" min="1" value={intervalMonths} onChange={(e) => setIntervalMonths(e.target.value)} placeholder="12" />
               </label>
             </div>
             <div className="row">
               <label>
-                Last done on
+                {t('Last done on')}
                 <input type="date" required value={lastDate} onChange={(e) => setLastDate(e.target.value)} />
               </label>
               <label>
-                At odometer (km)
+                {t('At odometer ({unit})', { unit: distUnit() })}
                 <input type="number" min="0" value={lastOdometer} onChange={(e) => setLastOdometer(e.target.value)} />
               </label>
             </div>
@@ -124,9 +126,9 @@ export function ReminderForm({ vehicleId, reminder, initialType, currentOdometer
         {error && <p className="hint warn">{error}</p>}
         <div className="actions">
           <button type="button" className="btn ghost" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </button>
-          <button className="btn primary">Save</button>
+          <button className="btn primary">{t('Save')}</button>
         </div>
       </form>
     </Modal>

@@ -3,6 +3,7 @@
 import { createServer } from 'node:http';
 import { copyFile, cp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { homedir, networkInterfaces } from 'node:os';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +20,10 @@ const DATA_FILE = join(DATA_DIR, 'car-data.json');
 const SETTINGS_FILE = join(DATA_DIR, 'settings.json');
 const NOTIFY_FILE = join(DATA_DIR, 'notify-state.json');
 const BACKUP_DIR = join(DATA_DIR, 'backups');
+/** Receipt and document photos. */
+const FILES_DIR = join(DATA_DIR, 'files');
+const MAX_FILE = 15 * 1024 * 1024;
+const FILE_TYPES = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/heic': '.heic', 'image/gif': '.gif', 'application/pdf': '.pdf' };
 const OLD_DATA_DIR = join(ROOT, 'data');
 const PORT = Number(process.env.PORT ?? 8080);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -39,6 +44,11 @@ const MIME = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.webmanifest': 'application/manifest+json',
+  '.jpg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.heic': 'image/heic',
+  '.gif': 'image/gif',
+  '.pdf': 'application/pdf',
 };
 
 const DEFAULT_EMAIL = {
@@ -79,6 +89,7 @@ async function migrateOldDataDir() {
 
 async function load() {
   await mkdir(BACKUP_DIR, { recursive: true });
+  await mkdir(FILES_DIR, { recursive: true });
   await migrateOldDataDir();
   const parsed = await readJson(DATA_FILE, null);
   if (parsed) {
@@ -223,6 +234,17 @@ function sendJson(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+async function readRaw(req, max) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > max) throw Object.assign(new Error('File too large (15 MB at most)'), { status: 413 });
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 async function readBody(req) {
   const chunks = [];
   let size = 0;
@@ -244,6 +266,15 @@ const routes = {
     const body = await readBody(req);
     await save(applyOps(store.data, body.ops));
     return [200, store];
+  },
+  'POST /api/files': async (req) => {
+    const type = (req.headers['content-type'] ?? '').split(';')[0].trim();
+    const ext = FILE_TYPES[type];
+    if (!ext) throw new Error('Only photos (JPEG, PNG, WebP, HEIC) and PDFs can be attached');
+    const body = await readRaw(req, MAX_FILE);
+    const id = randomBytes(12).toString('hex');
+    await writeFile(join(FILES_DIR, id + ext), body);
+    return [200, { id, url: `/files/${id}${ext}` }];
   },
   'GET /api/settings': async () => [200, publicSettings()],
   'PUT /api/settings': async (req) => {
@@ -303,6 +334,16 @@ const server = createServer(async (req, res) => {
     if (path === '/calendar.ics') {
       res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(toIcs(calendarItems(store.data, localDate())));
+    }
+    const file = /^\/files\/([a-f0-9]{24}\.(?:jpg|png|webp|heic|gif|pdf))$/.exec(path);
+    if (file) {
+      try {
+        const body = await readFile(join(FILES_DIR, file[1]));
+        res.writeHead(200, { 'Content-Type': MIME[extname(file[1])], 'Cache-Control': 'private, max-age=31536000, immutable' });
+        return res.end(body);
+      } catch {
+        return sendJson(res, 404, { error: 'File not found' });
+      }
     }
     if (path.startsWith('/api/')) await handleApi(req, res, path);
     else await serveStatic(res, path);

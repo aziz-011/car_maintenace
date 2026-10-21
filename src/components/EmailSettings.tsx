@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { t } from '../i18n';
 
 interface EmailConfig {
   enabled: boolean;
@@ -54,7 +55,7 @@ export function EmailSettings() {
         setConfig(s.email);
         setProviders(s.providers);
       })
-      .catch((e) => setMessage({ text: `Could not load settings: ${e.message}`, error: true }));
+      .catch((e) => setMessage({ text: t('Could not load settings: {error}', { error: e.message }), error: true }));
   }, []);
 
   if (!config) return message ? <p className="hint warn">{message.text}</p> : null;
@@ -87,7 +88,7 @@ export function EmailSettings() {
     e.preventDefault();
     void run(async () => {
       await save();
-      return 'Saved.';
+      return t('Saved.');
     });
   };
 
@@ -95,53 +96,53 @@ export function EmailSettings() {
     run(async () => {
       await save();
       await api('/api/email/test', { method: 'POST' });
-      return `Test email sent to ${config.to}. Check your inbox (and spam folder).`;
+      return t('Test email sent to {to}. Check your inbox (and spam folder).', { to: config.to });
     });
 
   const sendCheckin = () =>
     run(async () => {
       await save();
       await api('/api/email/checkin', { method: 'POST' });
-      return `Check-in email sent to ${config.to}.`;
+      return t('Check-in email sent to {to}.', { to: config.to });
     });
 
   const checkNow = () =>
     run(async () => {
       await save();
       const r = await api<{ reminders?: number; backup?: boolean; skipped?: string }>('/api/email/check', { method: 'POST' });
-      if (r.skipped) return r.skipped;
-      if (!r.reminders && !r.backup) return 'Nothing new to send: you already got an email for everything due.';
-      return `Sent ${r.reminders} reminder(s)${r.backup ? ' and a backup' : ''}.`;
+      if (r.skipped) return t(r.skipped);
+      if (!r.reminders && !r.backup) return t('Nothing new to send: you already got an email for everything due.');
+      return r.backup ? t('Sent {n} reminder(s) and a backup.', { n: r.reminders ?? 0 }) : t('Sent {n} reminder(s).', { n: r.reminders ?? 0 });
     });
 
   return (
     <form className="form" onSubmit={onSubmit}>
       <label className="check">
         <input type="checkbox" checked={config.enabled} onChange={(e) => set('enabled', e.target.checked)} />
-        Email me about upcoming and overdue reminders
+        {t('Email me about upcoming and overdue reminders')}
       </label>
 
       <label>
-        Email service
+        {t('Email service')}
         <select value={config.provider} onChange={(e) => set('provider', e.target.value)}>
           {Object.entries(providers).map(([id, label]) => (
             <option key={id} value={id}>
-              {label} (free)
+              {t('{name} (free)', { name: label })}
             </option>
           ))}
         </select>
       </label>
       {help && (
         <p className="hint">
-          {help.steps}{' '}
+          {t(help.steps)}{' '}
           <a href={help.signup} target="_blank" rel="noreferrer">
-            Get a key
+            {t('Get a key')}
           </a>
         </p>
       )}
 
       <label>
-        API key
+        {t('API key')}
         <input
           type="password"
           autoComplete="off"
@@ -152,17 +153,17 @@ export function EmailSettings() {
       </label>
 
       <label>
-        To (your email)
-        <input type="email" value={config.to} onChange={(e) => set('to', e.target.value)} placeholder="you@gmail.com" />
+        {t('To (your email)')}
+        <input type="email" value={config.to} onChange={(e) => set('to', e.target.value)} placeholder={t('you@gmail.com')} />
       </label>
       <label>
-        From
+        {t('From')}
         <input value={config.from} onChange={(e) => set('from', e.target.value)} />
       </label>
-      {help && <p className="hint">{help.from}</p>}
+      {help && <p className="hint">{t(help.from)}</p>}
 
       <label>
-        First warning, days before a date
+        {t('First warning, days before a date')}
         <input
           type="number"
           min="1"
@@ -171,19 +172,19 @@ export function EmailSettings() {
           onChange={(e) => set('daysBefore', Number(e.target.value))}
         />
       </label>
-      <p className="hint">You get an email then, again a week before, and when it is overdue. Distance reminders warn 1,000 km ahead.</p>
+      <p className="hint">{t('You get an email then, again a week before, and when it is overdue. Distance reminders warn 1,000 km ahead.')}</p>
 
       <label className="check">
         <input type="checkbox" checked={config.weeklyCheckin} onChange={(e) => set('weeklyCheckin', e.target.checked)} />
-        Weekly odometer check-in: ask for my readings and list what is coming up
+        {t('Weekly odometer check-in: ask for my readings and list what is coming up')}
       </label>
       {config.weeklyCheckin && (
         <label>
-          Send it every
+          {t('Send it every')}
           <select value={config.checkinDay} onChange={(e) => set('checkinDay', Number(e.target.value))}>
             {DAYS.map((d, i) => (
               <option key={d} value={i}>
-                {d} evening (from 18:00)
+                {t('{day} evening (from 18:00)', { day: t(d) })}
               </option>
             ))}
           </select>
@@ -192,25 +193,25 @@ export function EmailSettings() {
 
       <label className="check">
         <input type="checkbox" checked={config.weeklyBackup} onChange={(e) => set('weeklyBackup', e.target.checked)} />
-        Also email me a backup of my data every week
+        {t('Also email me a backup of my data every week')}
       </label>
 
       {message && <p className={`hint ${message.error ? 'warn' : ''}`}>{message.text}</p>}
       <div className="quick-actions">
         <button className="btn primary" disabled={busy}>
-          Save
+          {t('Save')}
         </button>
         <button type="button" className="btn" disabled={busy || (!config.hasKey && !apiKey) || !config.to} onClick={sendTest}>
-          Send test email
+          {t('Send test email')}
         </button>
         <button type="button" className="btn" disabled={busy || !config.enabled} onClick={checkNow}>
-          Check now
+          {t('Check now')}
         </button>
         <button type="button" className="btn" disabled={busy || (!config.hasKey && !apiKey) || !config.to} onClick={sendCheckin}>
-          Send check-in now
+          {t('Send check-in now')}
         </button>
       </div>
-      <p className="hint">Emails are sent by the PC running the server, so it needs to be on. The API key stays on that PC.</p>
+      <p className="hint">{t('Emails are sent by the PC running the server, so it needs to be on. The API key stays on that PC.')}</p>
     </form>
   );
 }

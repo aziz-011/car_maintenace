@@ -35,7 +35,13 @@ interface ClaudeDownloads {
   save(request: { filename: string; data: string | Blob }): Promise<{ status: string }>;
 }
 
+interface ClaudeAssets {
+  upload(blob: Blob): Promise<{ id: string; url: string; sizeBytes: number; contentType: string }>;
+  delete(id: string): Promise<void>;
+}
+
 interface ClaudeCapabilities {
+  assets: ClaudeAssets;
   db: ClaudeDb;
   user: ClaudeUser;
   downloads: ClaudeDownloads;

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { OptionGroup } from '../types';
+import { t } from '../i18n';
 
 const OTHER = '__other';
 
@@ -32,19 +33,19 @@ export function PartsPicker({ value, onChange, groups }: Props) {
           else add(e.target.value);
         }}
       >
-        <option value="">{value.length ? 'Add another part…' : 'Add a part…'}</option>
+        <option value="">{t(value.length ? 'Add another part…' : 'Add a part…')}</option>
         {groups.map((g) => (
-          <optgroup key={g.label} label={g.label}>
+          <optgroup key={g.label} label={t(g.label)}>
             {g.options
               .filter((o) => !value.includes(o))
               .map((o) => (
                 <option key={o} value={o}>
-                  {o}
+                  {t(o)}
                 </option>
               ))}
           </optgroup>
         ))}
-        <option value={OTHER}>Other…</option>
+        <option value={OTHER}>{t('Other…')}</option>
       </select>
 
       {custom !== null && (
@@ -52,7 +53,7 @@ export function PartsPicker({ value, onChange, groups }: Props) {
           <input
             autoFocus
             value={custom}
-            placeholder="Part name"
+            placeholder={t('Part name')}
             onChange={(e) => setCustom(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -62,7 +63,7 @@ export function PartsPicker({ value, onChange, groups }: Props) {
             }}
           />
           <button type="button" className="btn" onClick={addCustom}>
-            Add
+            {t('Add')}
           </button>
         </div>
       )}
@@ -71,8 +72,8 @@ export function PartsPicker({ value, onChange, groups }: Props) {
         <ul className="chips">
           {value.map((p) => (
             <li key={p} className="chip">
-              {p}
-              <button type="button" aria-label={`Remove ${p}`} onClick={() => onChange(value.filter((x) => x !== p))}>
+              {t(p)}
+              <button type="button" aria-label={t('Remove {name}', { name: t(p) })} onClick={() => onChange(value.filter((x) => x !== p))}>
                 ×
               </button>
             </li>

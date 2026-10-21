@@ -3,6 +3,7 @@ import { dueText } from '../reminderText';
 import type { ReminderStatus } from '../stats';
 import { fmtDate, fmtKm } from '../format';
 import type { Reminder } from '../types';
+import { t } from '../i18n';
 
 interface Props {
   statuses: ReminderStatus[];
@@ -22,32 +23,31 @@ export function RemindersView({ statuses, onAdd, onEdit, onRenew, onDelete }: Pr
   return (
     <section className="card">
       <div className="card-header">
-        <h3>Reminders & key dates</h3>
+        <h3>{t('Reminders & key dates')}</h3>
         <button className="btn primary" onClick={onAdd}>
-          + Reminder
+          {t('+ Reminder')}
         </button>
       </div>
       {sorted.length === 0 ? (
         <p className="empty">
-          No reminders yet. Add the date of your insurance or technical inspection, or a repeating one for oil changes,
-          tires…
+          {t('No reminders yet. Add the date of your insurance or technical inspection, or a repeating one for oil changes, tires…')}
         </p>
       ) : (
         <ul className="list">
           {sorted.map((s) => {
             const r = s.reminder;
-            const every = [r.intervalKm && fmtKm(r.intervalKm), r.intervalMonths && `${r.intervalMonths} months`]
+            const every = [r.intervalKm && fmtKm(r.intervalKm), r.intervalMonths && t('{n} months', { n: r.intervalMonths })]
               .filter(Boolean)
               .join(' / ');
             return (
               <li key={r.id} className="list-item">
                 <div>
-                  <strong>{r.type}</strong>
+                  <strong>{t(r.type)}</strong>
                   {!r.dueDate && (
                     <>
-                      <span className="muted">Every {every}</span>
+                      <span className="muted">{t('Every {interval}', { interval: every })}</span>
                       <span className="muted">
-                        Last: {fmtDate(s.lastDate)} at {fmtKm(s.lastOdometer)}
+                        {t('Last: {date} at {km}', { date: fmtDate(s.lastDate), km: fmtKm(s.lastOdometer) })}
                       </span>
                     </>
                   )}
@@ -58,14 +58,14 @@ export function RemindersView({ statuses, onAdd, onEdit, onRenew, onDelete }: Pr
                   <span className="row-actions">
                     {r.dueDate && (
                       <button className="link" onClick={() => onRenew(r)}>
-                        Renew
+                        {t('Renew')}
                       </button>
                     )}
                     <button className="link" onClick={() => onEdit(r)}>
-                      Edit
+                      {t('Edit')}
                     </button>
                     <button className="link danger" onClick={() => onDelete(r)}>
-                      Delete
+                      {t('Delete')}
                     </button>
                   </span>
                 </div>

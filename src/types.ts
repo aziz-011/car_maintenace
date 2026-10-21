@@ -12,6 +12,16 @@ export interface Vehicle {
   initialOdometer: number;
 }
 
+/** A photo or PDF kept with a record: a receipt, an invoice, a scanned document. */
+export interface Attachment {
+  id: string;
+  name: string;
+  type: string;
+  /** Where the file is served: the home server's /files/…, or a claude.ai asset. */
+  url: string;
+  size?: number;
+}
+
 export interface FuelEntry {
   id: string;
   vehicleId: string;
@@ -22,6 +32,7 @@ export interface FuelEntry {
   fullTank: boolean;
   station?: string;
   notes?: string;
+  attachments?: Attachment[];
 }
 
 /** Kind of job done at a visit. */
@@ -30,6 +41,7 @@ export const SERVICE_TYPES = [
   'Oil change',
   'Brake service',
   'Tire change',
+  'Tire rotation',
   'Repair',
   'Technical inspection (visite technique)',
   'Diagnostics',
@@ -95,6 +107,7 @@ export interface ServiceEntry {
   cost: number;
   shop?: string;
   notes?: string;
+  attachments?: Attachment[];
 }
 
 export interface Reminder {
@@ -120,22 +133,99 @@ export interface OdometerReading {
   odometer: number;
 }
 
+/** Papers kept for a car; each can carry photos or PDFs. */
+export const CAR_DOCUMENT_TYPES = [
+  'Registration (carte grise)',
+  'Insurance certificate',
+  'Technical inspection report',
+  'Road tax / vignette receipt',
+  'Driving licence',
+  'Purchase invoice',
+  'Warranty',
+  'Other',
+] as const;
+
+/**
+ * A document whose expiry date also drives the matching reminder, so the
+ * insurance expiry on the certificate is the one you get reminded about.
+ */
+export const DOCUMENT_REMINDER: Record<string, string> = {
+  'Insurance certificate': 'Insurance',
+  'Technical inspection report': 'Technical inspection (visite technique)',
+  'Road tax / vignette receipt': 'Road tax / vignette',
+  'Registration (carte grise)': 'Registration',
+  'Driving licence': 'Driving licence',
+  Warranty: 'Warranty',
+};
+
+export interface CarDocument {
+  id: string;
+  vehicleId: string;
+  type: string;
+  /** Policy, certificate or plate number. */
+  number?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  notes?: string;
+  attachments?: Attachment[];
+}
+
+export const TIRE_SEASONS = ['summer', 'winter', 'all-season'] as const;
+export type TireSeason = (typeof TIRE_SEASONS)[number];
+export const TIRE_SEASON_LABEL: Record<TireSeason, string> = { summer: 'Summer', winter: 'Winter', 'all-season': 'All-season' };
+
+/** A set of tires: on the car while removedDate is empty. */
+export interface TireSet {
+  id: string;
+  vehicleId: string;
+  brand: string;
+  model?: string;
+  /** e.g. 195/65 R15 91H. */
+  size?: string;
+  season: TireSeason;
+  fittedDate: string;
+  fittedOdometer: number;
+  removedDate?: string;
+  removedOdometer?: number;
+  notes?: string;
+}
+
+export type Currency = string;
+
+/** App-wide choices; stored as a single record with id "prefs". */
+export interface Prefs {
+  id: 'prefs';
+  language: 'en' | 'fr';
+  currency: Currency;
+  distance: 'km' | 'mi';
+  consumption: 'l100' | 'kml';
+}
+
+export const DEFAULT_PREFS: Prefs = { id: 'prefs', language: 'en', currency: 'TND', distance: 'km', consumption: 'l100' };
+
+export const CURRENCIES = ['TND', 'EUR', 'USD', 'DZD', 'MAD', 'LYD', 'GBP', 'CHF', 'CAD', 'SAR', 'AED', 'EGP'];
+
 export interface AppData {
   vehicles: Vehicle[];
   fuel: FuelEntry[];
   services: ServiceEntry[];
   reminders: Reminder[];
   readings: OdometerReading[];
+  documents: CarDocument[];
+  tires: TireSet[];
+  prefs: Prefs[];
 }
 
 /** Every kind of record, in one place for storage and sync code. */
-export const COLLECTIONS = ['vehicles', 'fuel', 'services', 'reminders', 'readings'] as const;
+export const COLLECTIONS = ['vehicles', 'fuel', 'services', 'reminders', 'readings', 'documents', 'tires', 'prefs'] as const;
+
+export const prefsOf = (data: AppData): Prefs => ({ ...DEFAULT_PREFS, ...data.prefs?.[0] });
 
 /** Oil change interval suggested for new cars. */
 export const DEFAULT_OIL_INTERVAL_KM = 7500;
 
 export function emptyData(): AppData {
-  return { vehicles: [], fuel: [], services: [], reminders: [], readings: [] };
+  return { vehicles: [], fuel: [], services: [], reminders: [], readings: [], documents: [], tires: [], prefs: [] };
 }
 
 /**

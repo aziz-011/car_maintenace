@@ -1,3 +1,5 @@
+import { fmtKm } from './format';
+import { t } from './i18n';
 import { addDays, vehicleOverview } from './stats';
 import type { AppData } from './types';
 
@@ -20,15 +22,17 @@ export function calendarItems(data: AppData, today: string): CalendarItem[] {
       const date = candidates[0];
       if (!date) continue;
       const estimated = date === s.estimatedDate && date !== s.dueDate;
-      const km = s.dueOdometer ? ` at ${s.dueOdometer.toLocaleString('en')} km` : '';
+      const km = s.dueOdometer ? fmtKm(s.dueOdometer) : '';
       items.push({
         key: `car-maintenance-${s.reminder.id}`,
-        title: `${s.reminder.type} – ${vehicle.name}${estimated ? ' (estimated)' : ''}`,
+        title: `${t(s.reminder.type)} – ${vehicle.name}${estimated ? ` (${t('estimated')})` : ''}`,
         date,
         estimated,
         details: estimated
-          ? `Due${km}. Estimated from your recent driving; the date moves as you add odometer readings.`
-          : `Due${km || ` on ${date}`}.`,
+          ? t('Due at {km}. Estimated from your recent driving; the date moves as you add odometer readings.', { km })
+          : km
+            ? t('Due at {km}.', { km })
+            : t('Due on {date}.', { date }),
       });
     }
   }

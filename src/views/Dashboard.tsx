@@ -3,9 +3,10 @@ import { Icon } from '../components/Icon';
 import { ReminderBadge } from '../components/ReminderBadge';
 import { dueText } from '../reminderText';
 import { consumptionSegments, daysBetween, fuelSummary, type DrivingRate, type ReminderStatus } from '../stats';
-import { fmtDate, fmtKm, fmtMoney, fmtNum } from '../format';
+import { consumptionUnit, distUnit, fmtConsumption, fmtDate, fmtKm, fmtMoney, fmtNum, toUserDist } from '../format';
 import { today } from '../store';
 import { DEFAULT_OIL_INTERVAL_KM, type FuelEntry, type ServiceEntry, type Vehicle } from '../types';
+import { plural, t } from '../i18n';
 
 interface Props {
   vehicle: Vehicle;
@@ -58,7 +59,7 @@ function OdometerDigits({ value }: { value: number }) {
           {d}
         </span>
       ))}
-      <span className="odo-unit">km</span>
+      <span className="odo-unit">{t('km')}</span>
     </span>
   );
 }
@@ -93,10 +94,10 @@ export function Dashboard({
       id: f.id,
       date: f.date,
       icon: 'fuel' as const,
-      label: `${fmtNum(f.liters)} L fuel`,
+      label: t('{n} L fuel', { n: fmtNum(f.liters) }),
       cost: f.totalCost,
     })),
-    ...services.map((s) => ({ id: s.id, date: s.date, icon: 'wrench' as const, label: s.type, cost: s.cost })),
+    ...services.map((s) => ({ id: s.id, date: s.date, icon: 'wrench' as const, label: t(s.type), cost: s.cost })),
   ]
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 5);
@@ -111,7 +112,7 @@ export function Dashboard({
               {(subtitle !== vehicle.name || vehicle.engine) && (
                 <span className="hero-sub">
                   {subtitle}
-                  {vehicle.engine && ` · ${vehicle.engine}`}
+                  {vehicle.engine && ` · ${t(vehicle.engine)}`}
                 </span>
               )}
             </div>
@@ -121,8 +122,8 @@ export function Dashboard({
           <div className="hero-odo">
             <OdometerDigits value={odometer} />
             <span className="hero-note">
-              {lastOdometerDate ? `Read ${fmtDate(lastOdometerDate)}` : 'No reading yet'}
-              {driving && ` · about ${fmtNum(Math.round(driving.kmPerDay * 7))} km a week`}
+              {lastOdometerDate ? t('Read {date}', { date: fmtDate(lastOdometerDate) }) : t('No reading yet')}
+              {driving && ` · ${t('about {km} a week', { km: fmtKm(driving.kmPerDay * 7) })}`}
             </span>
           </div>
 
@@ -130,14 +131,14 @@ export function Dashboard({
             <div className="oil">
               <div className="oil-row">
                 <span className="oil-label">
-                  <Icon name="oil" size={16} /> Next oil change at {fmtKm(oil.dueOdometer)}
+                  <Icon name="oil" size={16} /> {t('Next oil change at {km}', { km: fmtKm(oil.dueOdometer) })}
                 </span>
                 <ReminderBadge state={oil.state} />
               </div>
               <div
                 className={`meter ${oil.state}`}
                 role="meter"
-                aria-label="Oil used since the last change"
+                aria-label={t('Oil used since the last change')}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(oilUsed * 100)}
@@ -148,19 +149,19 @@ export function Dashboard({
             </div>
           ) : (
             <button className="btn small on-dark" onClick={() => onAddOilReminder(DEFAULT_OIL_INTERVAL_KM)}>
-              <Icon name="oil" size={16} /> Track oil changes every {fmtKm(DEFAULT_OIL_INTERVAL_KM)}
+              <Icon name="oil" size={16} /> {t('Track oil changes every {km}', { km: fmtKm(DEFAULT_OIL_INTERVAL_KM) })}
             </button>
           )}
 
           <div className="hero-actions">
             <button className="btn primary" onClick={onAddFuel}>
-              <Icon name="fuel" size={18} /> Fill-up
+              <Icon name="fuel" size={18} /> {t('Fill-up')}
             </button>
             <button className="btn on-dark" onClick={onAddService}>
-              <Icon name="wrench" size={18} /> Service
+              <Icon name="wrench" size={18} /> {t('Service')}
             </button>
             <button className="btn on-dark" onClick={onUpdateOdometer}>
-              <Icon name="odometer" size={18} /> Odometer
+              <Icon name="odometer" size={18} /> {t('Odometer')}
             </button>
           </div>
         </section>
@@ -169,25 +170,24 @@ export function Dashboard({
           <div className="notice">
             <span>
               {sinceReading === undefined
-                ? 'Add your odometer reading once a week so the app can estimate your next oil change.'
-                : `Your last odometer reading was ${sinceReading} days ago.`}
+                ? t('Add your odometer reading once a week so the app can estimate your next oil change.') : t('Your last odometer reading was {n} days ago.', { n: sinceReading })}
             </span>
             <button className="btn small primary" onClick={onUpdateOdometer}>
-              Update odometer
+              {t('Update odometer')}
             </button>
           </div>
         )}
 
         <section className="card coming">
           <div className="card-header">
-            <h3>Coming up</h3>
+            <h3>{t('Coming up')}</h3>
             {coming.length > 0 && (
               <button className="link" onClick={onOpenReminders}>
-                All reminders
+                {t('All reminders')}
               </button>
             )}
           </div>
-          {coming.length === 0 && <p className="empty">Nothing scheduled yet. Add your key dates below.</p>}
+          {coming.length === 0 && <p className="empty">{t('Nothing scheduled yet. Add your key dates below.')}</p>}
           <ul className="list">
             {coming.slice(0, 6).map((r) => {
               const date = whenDue(r);
@@ -201,12 +201,12 @@ export function Dashboard({
                       </>
                     ) : (
                       <>
-                        <b>{fmtNum(Math.round((r.kmLeft ?? 0) / 1000))}k</b>km
+                        <b>{fmtNum(Math.round((r.kmLeft ?? 0) / 1000))}k</b>{t('km')}
                       </>
                     )}
                   </span>
                   <div>
-                    <strong>{r.reminder.type}</strong>
+                    <strong>{t(r.reminder.type)}</strong>
                     <span className="muted">{dueText(r)}</span>
                   </div>
                   <ReminderBadge state={r.state} />
@@ -218,7 +218,7 @@ export function Dashboard({
             <div className="quick-actions">
               {missing.map((k) => (
                 <button key={k.type} className="btn small" onClick={() => onAddReminder(k.type)}>
-                  <Icon name="plus" size={14} /> {k.label}
+                  <Icon name="plus" size={14} /> {t(k.label)}
                 </button>
               ))}
             </div>
@@ -227,30 +227,30 @@ export function Dashboard({
       </div>
 
       <div className="dash-col">
-        <section className="tiles" aria-label="Running costs">
+        <section className="tiles" aria-label={t('Running costs')}>
           <div className="tile">
-            <span className="tile-label">Consumption</span>
+            <span className="tile-label">{t('Consumption')}</span>
             <span className="tile-value">
-              {fmtNum(summary.averageLPer100)} <small>L/100 km</small>
+              {fmtConsumption(summary.averageLPer100)} <small>{consumptionUnit()}</small>
             </span>
             <span className="tile-sub">
-              {summary.lastLPer100 != null ? `Last tank ${fmtNum(summary.lastLPer100)}` : 'Two full tanks needed'}
+              {summary.lastLPer100 != null ? t('Last tank {n}', { n: fmtConsumption(summary.lastLPer100) }) : t('Two full tanks needed')}
             </span>
           </div>
           <div className="tile">
-            <span className="tile-label">Fuel per km</span>
-            <span className="tile-value">{fmtMoney(summary.costPerKm)}</span>
-            <span className="tile-sub">Avg {fmtMoney(summary.averagePricePerLiter)} / L</span>
+            <span className="tile-label">{t('Fuel per {unit}', { unit: distUnit() })}</span>
+            <span className="tile-value">{fmtMoney(summary.costPerKm == null ? null : summary.costPerKm / toUserDist(1))}</span>
+            <span className="tile-sub">{t('Avg {price} / L', { price: fmtMoney(summary.averagePricePerLiter) })}</span>
           </div>
           <div className="tile">
-            <span className="tile-label">Fuel spent</span>
+            <span className="tile-label">{t('Fuel spent')}</span>
             <span className="tile-value">{fmtMoney(summary.totalCost)}</span>
-            <span className="tile-sub">{fuel.length} fill-up{fuel.length === 1 ? '' : 's'}</span>
+            <span className="tile-sub">{plural(fuel.length, '{n} fill-up', '{n} fill-ups')}</span>
           </div>
           <div className="tile">
-            <span className="tile-label">Maintenance</span>
+            <span className="tile-label">{t('Maintenance')}</span>
             <span className="tile-value">{fmtMoney(serviceCost)}</span>
-            <span className="tile-sub">{services.length} service{services.length === 1 ? '' : 's'}</span>
+            <span className="tile-sub">{plural(services.length, '{n} service', '{n} services')}</span>
           </div>
         </section>
 
@@ -259,9 +259,9 @@ export function Dashboard({
         </section>
 
         <section className="card recent">
-          <h3>Recent activity</h3>
+          <h3>{t('Recent activity')}</h3>
           {recent.length === 0 ? (
-            <p className="empty">Nothing logged yet. Add your first fill-up or service.</p>
+            <p className="empty">{t('Nothing logged yet. Add your first fill-up or service.')}</p>
           ) : (
             <ul className="list">
               {recent.map((r) => (

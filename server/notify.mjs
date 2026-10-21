@@ -1,9 +1,17 @@
 // Decides which reminder emails are due. Pure functions, so they can be unit tested.
 import { calendarItems } from '../src/calendar.ts';
-import { fmtDate, fmtKm } from '../src/format.ts';
+import { applyPrefs, fmtDate, fmtKm } from '../src/format.ts';
+import { setLanguage, t } from '../src/i18n.ts';
 import { dueText } from '../src/reminderText.ts';
 import { daysBetween, vehicleOverview } from '../src/stats.ts';
-import { normalizeData } from '../src/types.ts';
+import { normalizeData, prefsOf } from '../src/types.ts';
+
+/** Emails use the owner's language, currency and units, like the app. */
+export function useDataPrefs(data) {
+  const prefs = prefsOf(normalizeData(data));
+  applyPrefs(prefs);
+  setLanguage(prefs.language);
+}
 
 const escape = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -22,13 +30,14 @@ function stageOf(status) {
 export function collectAlerts(data, { today, soonDays, sent }) {
   const alerts = [];
   data = normalizeData(data);
+  useDataPrefs(data);
   for (const vehicle of data.vehicles) {
     for (const status of vehicleOverview(vehicle, data, today, soonDays).statuses) {
       const reminder = status.reminder;
       const stage = stageOf(status);
       if (!stage) continue;
       const key = [reminder.id, stage, status.dueDate ?? '', status.dueOdometer ?? ''].join('|');
-      alerts.push({ key, isNew: !(key in sent), vehicle: vehicle.name, type: reminder.type, state: status.state, text: dueText(status) });
+      alerts.push({ key, isNew: !(key in sent), vehicle: vehicle.name, type: t(reminder.type), state: status.state, text: dueText(status) });
     }
   }
   return alerts;
@@ -39,24 +48,26 @@ export function reminderEmail(alerts, appUrl) {
   const overdue = fresh.filter((a) => a.state === 'overdue').length;
   const subject =
     fresh.length === 1
-      ? `${fresh[0].type} (${fresh[0].vehicle}): ${fresh[0].state === 'overdue' ? 'overdue' : 'coming up'}`
-      : `${fresh.length} car reminders${overdue ? `, ${overdue} overdue` : ''}`;
+      ? `${fresh[0].type} (${fresh[0].vehicle}): ${fresh[0].state === 'overdue' ? t('overdue') : t('coming up')}`
+      : overdue
+        ? t('{n} car reminders, {overdue} overdue', { n: fresh.length, overdue })
+        : t('{n} car reminders', { n: fresh.length });
   const line = (a) => `${a.vehicle} · ${a.type}: ${a.text}`;
   const others = alerts.filter((a) => !a.isNew);
   const text = [
-    'Car Maintenance reminder',
+    t('Car Maintenance reminder'),
     '',
     ...fresh.map((a) => `- ${line(a)}`),
-    ...(others.length ? ['', 'Still pending:', ...others.map((a) => `- ${line(a)}`)] : []),
-    ...(appUrl ? ['', `Open the app: ${appUrl}`] : []),
+    ...(others.length ? ['', t('Still pending:'), ...others.map((a) => `- ${line(a)}`)] : []),
+    ...(appUrl ? ['', t('Open the app: {url}', { url: appUrl })] : []),
   ].join('\n');
   const li = (a) =>
     `<li><strong>${escape(a.type)}</strong> (${escape(a.vehicle)}): <span style="color:${a.state === 'overdue' ? '#d03b3b' : '#52514e'}">${escape(a.text)}</span></li>`;
   const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5">
-<h2 style="margin:0 0 8px">Car Maintenance reminder</h2>
+<h2 style="margin:0 0 8px">${escape(t('Car Maintenance reminder'))}</h2>
 <ul>${fresh.map(li).join('')}</ul>
-${others.length ? `<p style="margin-bottom:0">Still pending:</p><ul>${others.map(li).join('')}</ul>` : ''}
-${appUrl ? `<p><a href="${escape(appUrl)}">Open the app</a></p>` : ''}
+${others.length ? `<p style="margin-bottom:0">${escape(t('Still pending:'))}</p><ul>${others.map(li).join('')}</ul>` : ''}
+${appUrl ? `<p><a href="${escape(appUrl)}">${escape(t('Open the app'))}</a></p>` : ''}
 </div>`;
   return { subject, text, html };
 }
@@ -72,6 +83,7 @@ const UPCOMING_DAYS = 60;
  */
 export function weeklyCheckinEmail(data, { today, appUrl }) {
   data = normalizeData(data);
+  useDataPrefs(data);
   const upcoming = calendarItems(data, today).filter((i) => daysBetween(today, i.date) <= UPCOMING_DAYS);
   const cars = data.vehicles.map((vehicle) => {
     const o = vehicleOverview(vehicle, data, today);
@@ -79,40 +91,40 @@ export function weeklyCheckinEmail(data, { today, appUrl }) {
     const age = o.lastOdometerDate ? daysBetween(o.lastOdometerDate, today) : undefined;
     return {
       name: vehicle.name,
-      odometer: `${fmtKm(o.odometer)}${o.lastOdometerDate ? ` on ${fmtDate(o.lastOdometerDate)}` : ''}`,
+      odometer: o.lastOdometerDate ? t('{km} on {date}', { km: fmtKm(o.odometer), date: fmtDate(o.lastOdometerDate) }) : fmtKm(o.odometer),
       stale: age === undefined || age >= STALE_DAYS,
-      perWeek: o.driving ? `${fmtKm(Math.round(o.driving.kmPerDay * 7))} a week` : null,
-      oil: oil ? `Next oil change at ${fmtKm(oil.dueOdometer)}: ${dueText(oil)}` : null,
+      perWeek: o.driving ? t('{km} a week', { km: fmtKm(o.driving.kmPerDay * 7) }) : null,
+      oil: oil ? t('Next oil change at {km}: {due}', { km: fmtKm(oil.dueOdometer), due: dueText(oil) }) : null,
     };
   });
   const asks = cars.filter((c) => c.stale).map((c) => c.name);
-  const subject = asks.length ? `Odometer check-in: ${asks.join(', ')}` : 'Car Maintenance: your week ahead';
+  const subject = asks.length ? t('Odometer check-in: {cars}', { cars: asks.join(', ') }) : t('Car Maintenance: your week ahead');
   const carLines = cars.flatMap((c) => [
-    `${c.name}: last reading ${c.odometer}${c.perWeek ? `, about ${c.perWeek}` : ''}`,
+    `${c.name}: ${t('last reading {odometer}', { odometer: c.odometer })}${c.perWeek ? `, ${t('about {perWeek}', { perWeek: c.perWeek })}` : ''}`,
     ...(c.oil ? [`  ${c.oil}`] : []),
   ]);
   const text = [
     asks.length
-      ? `Please add this week's odometer reading for ${asks.join(' and ')}: open the app and tap Update odometer.`
-      : 'Your odometer readings are up to date.',
+      ? t("Please add this week's odometer reading for {cars}: open the app and tap Update odometer.", { cars: asks.join(' & ') })
+      : t('Your odometer readings are up to date.'),
     '',
     ...carLines,
     '',
-    upcoming.length ? `Coming up in the next ${UPCOMING_DAYS} days:` : `Nothing due in the next ${UPCOMING_DAYS} days.`,
+    upcoming.length ? t('Coming up in the next {n} days:', { n: UPCOMING_DAYS }) : t('Nothing due in the next {n} days.', { n: UPCOMING_DAYS }),
     ...upcoming.map((i) => `- ${fmtDate(i.date)}: ${i.title}`),
-    ...(appUrl ? ['', `Open the app: ${appUrl}`] : []),
+    ...(appUrl ? ['', t('Open the app: {url}', { url: appUrl })] : []),
   ].join('\n');
   const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5">
-<p><strong>${asks.length ? `Please add this week's odometer reading for ${escape(asks.join(' and '))}.` : 'Your odometer readings are up to date.'}</strong>${asks.length ? ' Open the app and tap <em>Update odometer</em>.' : ''}</p>
+<p><strong>${escape(asks.length ? t("Please add this week's odometer reading for {cars}: open the app and tap Update odometer.", { cars: asks.join(' & ') }) : t('Your odometer readings are up to date.'))}</strong></p>
 ${cars
   .map(
     (c) =>
-      `<p style="margin:12px 0 0"><strong>${escape(c.name)}</strong><br>Last reading ${escape(c.odometer)}${c.perWeek ? `, about ${escape(c.perWeek)}` : ''}${c.oil ? `<br>${escape(c.oil)}` : ''}</p>`,
+      `<p style="margin:12px 0 0"><strong>${escape(c.name)}</strong><br>${escape(t('last reading {odometer}', { odometer: c.odometer }))}${c.perWeek ? `, ${escape(t('about {perWeek}', { perWeek: c.perWeek }))}` : ''}${c.oil ? `<br>${escape(c.oil)}` : ''}</p>`,
   )
   .join('')}
-<p style="margin:16px 0 4px">${upcoming.length ? `Coming up in the next ${UPCOMING_DAYS} days:` : `Nothing due in the next ${UPCOMING_DAYS} days.`}</p>
+<p style="margin:16px 0 4px">${escape(upcoming.length ? t('Coming up in the next {n} days:', { n: UPCOMING_DAYS }) : t('Nothing due in the next {n} days.', { n: UPCOMING_DAYS }))}</p>
 ${upcoming.length ? `<ul style="margin:0">${upcoming.map((i) => `<li>${escape(fmtDate(i.date))}: ${escape(i.title)}</li>`).join('')}</ul>` : ''}
-${appUrl ? `<p><a href="${escape(appUrl)}">Open the app</a></p>` : ''}
+${appUrl ? `<p><a href="${escape(appUrl)}">${escape(t('Open the app'))}</a></p>` : ''}
 </div>`;
   return { subject, text, html };
 }

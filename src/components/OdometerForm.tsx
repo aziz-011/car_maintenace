@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { fmtKm } from '../format';
+import { distInput, distUnit, fmtKm, parseDist } from '../format';
 import { newId, today } from '../store';
 import type { OdometerReading } from '../types';
 import { Modal } from './Modal';
+import { t } from '../i18n';
 
 interface Props {
   vehicleId: string;
@@ -15,7 +16,7 @@ interface Props {
 export function OdometerForm({ vehicleId, currentOdometer, onSave, onClose }: Props) {
   const [date, setDate] = useState(today());
   const [odometer, setOdometer] = useState('');
-  const value = Number(odometer);
+  const value = parseDist(odometer);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -23,10 +24,10 @@ export function OdometerForm({ vehicleId, currentOdometer, onSave, onClose }: Pr
   };
 
   return (
-    <Modal title="Update odometer" onClose={onClose}>
+    <Modal title={t('Update odometer')} onClose={onClose}>
       <form onSubmit={submit} className="form">
         <label>
-          Odometer now (km)
+          {t('Odometer now ({unit})', { unit: distUnit() })}
           <input
             type="number"
             inputMode="numeric"
@@ -34,26 +35,26 @@ export function OdometerForm({ vehicleId, currentOdometer, onSave, onClose }: Pr
             required
             autoFocus
             value={odometer}
-            placeholder={currentOdometer.toString()}
+            placeholder={distInput(currentOdometer)}
             onChange={(e) => setOdometer(e.target.value)}
           />
         </label>
         {odometer && value < currentOdometer && (
-          <p className="hint warn">Lower than the last known reading ({fmtKm(currentOdometer)}).</p>
+          <p className="hint warn">{t('Lower than the last known reading ({km}).', { km: fmtKm(currentOdometer) })}</p>
         )}
         {odometer && value > currentOdometer && (
-          <p className="hint">{fmtKm(value - currentOdometer)} since the last reading.</p>
+          <p className="hint">{t('{km} since the last reading.', { km: fmtKm(value - currentOdometer) })}</p>
         )}
         <label>
-          Date
+          {t('Date')}
           <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
         </label>
-        <p className="hint">A reading every week or so lets the app estimate when the next oil change is due.</p>
+        <p className="hint">{t('A reading every week or so lets the app estimate when the next oil change is due.')}</p>
         <div className="actions">
           <button type="button" className="btn ghost" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </button>
-          <button className="btn primary">Save</button>
+          <button className="btn primary">{t('Save')}</button>
         </div>
       </form>
     </Modal>

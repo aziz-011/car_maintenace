@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ConsumptionSegment } from '../stats';
-import { fmtDate, fmtKm, fmtNum } from '../format';
+import { consumptionUnit, fmtConsumption, fmtDate, fmtKm, fmtNum, toUserConsumption } from '../format';
+import { t } from '../i18n';
 
 const PAD = { top: 16, right: 16, bottom: 28, left: 40 };
 
@@ -20,11 +21,13 @@ export function ConsumptionChart({ segments }: { segments: ConsumptionSegment[] 
   }, [segments.length]);
 
   if (segments.length < 2) {
-    return <p className="empty">Log at least three full-tank fill-ups to see a consumption trend.</p>;
+    return <p className="empty">{t('Log at least three full-tank fill-ups to see a consumption trend.')}</p>;
   }
 
   const H = W < 480 ? 180 : 220;
-  const values = segments.map((s) => s.litersPer100km);
+  // Drawn in the chosen unit (L/100 km or km/L), so the axis reads like the rest of the app.
+  const value = (s: ConsumptionSegment) => toUserConsumption(s.litersPer100km);
+  const values = segments.map(value);
   const min = Math.floor(Math.min(...values) - 0.5);
   const max = Math.ceil(Math.max(...values) + 0.5);
   const innerW = W - PAD.left - PAD.right;
@@ -32,14 +35,14 @@ export function ConsumptionChart({ segments }: { segments: ConsumptionSegment[] 
   const x = (i: number) => PAD.left + (i / (segments.length - 1)) * innerW;
   const y = (v: number) => PAD.top + (1 - (v - min) / (max - min)) * innerH;
   const ticks = Array.from({ length: 4 }, (_, i) => min + ((max - min) * i) / 3);
-  const path = segments.map((s, i) => `${i ? 'L' : 'M'}${x(i)},${y(s.litersPer100km)}`).join(' ');
+  const path = segments.map((s, i) => `${i ? 'L' : 'M'}${x(i)},${y(value(s))}`).join(' ');
   const active = hover !== null ? segments[hover] : null;
 
   return (
     <figure className="chart">
-      <figcaption>Consumption per full tank (L/100 km)</figcaption>
+      <figcaption>{t('Consumption per full tank ({unit})', { unit: consumptionUnit() })}</figcaption>
       <div className="chart-wrap" ref={wrapRef}>
-        <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Fuel consumption over time">
+        <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t('Fuel consumption over time')}>
           {ticks.map((t) => (
             <g key={t}>
               <line className="grid" x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} />
@@ -63,7 +66,7 @@ export function ConsumptionChart({ segments }: { segments: ConsumptionSegment[] 
               key={s.entryId}
               className="series-dot"
               cx={x(i)}
-              cy={y(s.litersPer100km)}
+              cy={y(value(s))}
               r={hover === i ? 5 : 4}
             />
           ))}
@@ -87,10 +90,10 @@ export function ConsumptionChart({ segments }: { segments: ConsumptionSegment[] 
             className="tooltip"
             style={{
               left: `${(x(hover) / W) * 100}%`,
-              top: `${(y(active.litersPer100km) / H) * 100}%`,
+              top: `${(y(value(active)) / H) * 100}%`,
             }}
           >
-            <strong>{fmtNum(active.litersPer100km)} L/100 km</strong>
+            <strong>{fmtConsumption(active.litersPer100km)} {consumptionUnit()}</strong>
             <span>{fmtDate(active.date)}</span>
             <span>
               {fmtKm(active.distance)} · {fmtNum(active.liters)} L

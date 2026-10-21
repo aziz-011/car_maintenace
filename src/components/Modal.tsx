@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { t } from '../i18n';
 
 interface Props {
   title: string;
@@ -18,7 +19,7 @@ export function Modal({ title, onClose, children }: Props) {
       <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
         <header className="modal-header">
           <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">
+          <button className="icon-btn" onClick={onClose} aria-label={t('Close')}>
             ×
           </button>
         </header>

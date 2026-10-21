@@ -1,6 +1,7 @@
 import { consumptionSegments } from '../stats';
-import { fmtDate, fmtKm, fmtMoney, fmtNum } from '../format';
+import { consumptionUnit, fmtConsumption, fmtDate, fmtKm, fmtMoney, fmtNum } from '../format';
 import type { FuelEntry, OdometerReading } from '../types';
+import { t } from '../i18n';
 
 interface Props {
   entries: FuelEntry[];
@@ -22,24 +23,24 @@ export function FuelView({ entries, onAdd, onEdit, onDelete, readings, onAddRead
     <div className="stack">
       <section className="card">
         <div className="card-header">
-          <h3>Fuel log</h3>
+          <h3>{t('Fuel log')}</h3>
           <button className="btn primary" onClick={onAdd}>
-            + Fill-up
+            {t('+ Fill-up')}
           </button>
         </div>
         {sorted.length === 0 ? (
-          <p className="empty">No fill-ups yet.</p>
+          <p className="empty">{t('No fill-ups yet.')}</p>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th className="num">Odometer</th>
-                  <th className="num">Liters</th>
-                  <th className="num">Price/L</th>
-                  <th className="num">Total</th>
-                  <th className="num">L/100 km</th>
+                  <th>{t('Date')}</th>
+                  <th className="num">{t('Odometer')}</th>
+                  <th className="num">{t('Liters')}</th>
+                  <th className="num">{t('Price/L')}</th>
+                  <th className="num">{t('Total')}</th>
+                  <th className="num">{consumptionUnit()}</th>
                   <th />
                 </tr>
               </thead>
@@ -48,20 +49,20 @@ export function FuelView({ entries, onAdd, onEdit, onDelete, readings, onAddRead
                   <tr key={e.id}>
                     <td>
                       {fmtDate(e.date)}
-                      {!e.fullTank && <span className="tag">partial</span>}
+                      {!e.fullTank && <span className="tag">{t('partial')}</span>}
                       {e.station && <div className="muted">{e.station}</div>}
                     </td>
                     <td className="num">{fmtKm(e.odometer)}</td>
                     <td className="num">{fmtNum(e.liters)}</td>
                     <td className="num">{fmtMoney(e.totalCost / e.liters)}</td>
                     <td className="num">{fmtMoney(e.totalCost)}</td>
-                    <td className="num">{fmtNum(consumption.get(e.id))}</td>
+                    <td className="num">{fmtConsumption(consumption.get(e.id))}</td>
                     <td className="row-actions">
                       <button className="link" onClick={() => onEdit(e)}>
-                        Edit
+                        {t('Edit')}
                       </button>
                       <button className="link danger" onClick={() => onDelete(e)}>
-                        Delete
+                        {t('Delete')}
                       </button>
                     </td>
                   </tr>
@@ -74,13 +75,13 @@ export function FuelView({ entries, onAdd, onEdit, onDelete, readings, onAddRead
 
       <section className="card">
         <div className="card-header">
-          <h3>Odometer readings</h3>
+          <h3>{t('Odometer readings')}</h3>
           <button className="btn" onClick={onAddReading}>
-            Update odometer
+            {t('Update odometer')}
           </button>
         </div>
         {sortedReadings.length === 0 ? (
-          <p className="empty">No readings yet. Fill-ups and services also count as readings.</p>
+          <p className="empty">{t('No readings yet. Fill-ups and services also count as readings.')}</p>
         ) : (
           <ul className="list">
             {sortedReadings.map((r) => (
@@ -90,7 +91,7 @@ export function FuelView({ entries, onAdd, onEdit, onDelete, readings, onAddRead
                   <span className="muted">{fmtDate(r.date)}</span>
                 </div>
                 <button className="link danger" onClick={() => onDeleteReading(r)}>
-                  Delete
+                  {t('Delete')}
                 </button>
               </li>
             ))}

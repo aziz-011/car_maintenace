@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { registerConfirmHost, type ConfirmRequest } from '../confirm';
 import { Modal } from './Modal';
+import { t } from '../i18n';
 
 /** Renders the dialog for confirmAction(); mount once near the app root. */
 export function ConfirmHost() {
@@ -18,15 +19,15 @@ export function ConfirmHost() {
   };
 
   return (
-    <Modal title="Are you sure?" onClose={() => done(false)}>
+    <Modal title={t('Are you sure?')} onClose={() => done(false)}>
       <div className="form">
         <p className="confirm-text">{req.message}</p>
         <div className="actions">
           <button type="button" className="btn ghost" onClick={() => done(false)}>
-            Cancel
+            {t('Cancel')}
           </button>
           <button type="button" className="btn danger" onClick={() => done(true)} autoFocus>
-            {req.confirmLabel}
+            {t(req.confirmLabel)}
           </button>
         </div>
       </div>

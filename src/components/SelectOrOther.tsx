@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { OptionGroup } from '../types';
+import { t } from '../i18n';
 
 const OTHER = '__other';
 
@@ -20,7 +21,7 @@ interface Props {
  * A dropdown of known options with an "Other…" entry that reveals a text input.
  * Unlike a datalist, the full list opens on every browser, including phones.
  */
-export function SelectOrOther({ value, onChange, options = [], groups, required, placeholder = 'Choose…', otherPlaceholder }: Props) {
+export function SelectOrOther({ value, onChange, options = [], groups, required, placeholder, otherPlaceholder }: Props) {
   const all = groups ? groups.flatMap((g) => g.options) : options;
   const known = all.includes(value);
   const [custom, setCustom] = useState(value !== '' && !known);
@@ -38,23 +39,23 @@ export function SelectOrOther({ value, onChange, options = [], groups, required,
             onChange(v === OTHER ? '' : v);
           }}
         >
-          <option value="">{placeholder}</option>
+          <option value="">{placeholder ?? t('Choose…')}</option>
           {groups
             ? groups.map((g) => (
-                <optgroup key={g.label} label={g.label}>
+                <optgroup key={g.label} label={t(g.label)}>
                   {g.options.map((o) => (
                     <option key={o} value={o}>
-                      {o}
+                      {t(o)}
                     </option>
                   ))}
                 </optgroup>
               ))
             : options.map((o) => (
                 <option key={o} value={o}>
-                  {o}
+                  {t(o)}
                 </option>
               ))}
-          <option value={OTHER}>Other…</option>
+          <option value={OTHER}>{t('Other…')}</option>
         </select>
       )}
       {showInput && (

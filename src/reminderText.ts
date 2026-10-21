@@ -1,14 +1,22 @@
 import type { ReminderStatus } from './stats';
 import { fmtDate, fmtKm } from './format';
+import { t } from './i18n';
 
 export function dueText(s: ReminderStatus): string {
   const parts: string[] = [];
   if (s.kmLeft !== undefined) {
-    const estimate = s.estimatedDate ? ` (around ${fmtDate(s.estimatedDate)})` : '';
-    parts.push(s.kmLeft > 0 ? `Due in ${fmtKm(s.kmLeft)}${estimate}` : `${fmtKm(-s.kmLeft)} overdue`);
+    if (s.kmLeft > 0) {
+      parts.push(
+        s.estimatedDate
+          ? t('Due in {km} (around {date})', { km: fmtKm(s.kmLeft), date: fmtDate(s.estimatedDate) })
+          : t('Due in {km}', { km: fmtKm(s.kmLeft) }),
+      );
+    } else {
+      parts.push(t('{km} overdue', { km: fmtKm(-s.kmLeft) }));
+    }
   }
   if (s.dueDate !== undefined && s.daysLeft !== undefined) {
-    parts.push(s.daysLeft > 0 ? `Due by ${fmtDate(s.dueDate)}` : `Overdue since ${fmtDate(s.dueDate)}`);
+    parts.push(s.daysLeft > 0 ? t('Due by {date}', { date: fmtDate(s.dueDate) }) : t('Overdue since {date}', { date: fmtDate(s.dueDate) }));
   }
   return parts.join(' · ');
 }
