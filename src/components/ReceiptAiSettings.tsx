@@ -16,7 +16,7 @@ export function ReceiptAiSettings() {
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
 
   const call = async (body?: object) => {
-    const res = await fetch('/api/settings/ai', body ? { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined);
+    const res = await fetch('api/settings/ai', body ? { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined);
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
     setConfig(json.ai);

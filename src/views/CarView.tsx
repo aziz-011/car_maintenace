@@ -1,6 +1,6 @@
 import { Icon } from '../components/Icon';
 import { ServicePlanCard } from '../components/ServicePlanCard';
-import { isImage } from '../files';
+import { fileUrl, isImage } from '../files';
 import { daysBetween, type ReminderStatus } from '../stats';
 import { fmtDate, fmtKm, fmtNum } from '../format';
 import { t } from '../i18n';
@@ -122,8 +122,8 @@ export function CarView(props: Props) {
                     {thumbs.length > 0 && (
                       <div className="thumbs">
                         {thumbs.map((a) => (
-                          <a key={a.id} href={a.url} target="_blank" rel="noreferrer">
-                            <img src={a.url} alt={a.name} loading="lazy" />
+                          <a key={a.id} href={fileUrl(a)} target="_blank" rel="noreferrer">
+                            <img src={fileUrl(a)} alt={a.name} loading="lazy" />
                           </a>
                         ))}
                         {(d.attachments?.length ?? 0) > thumbs.length && <span className="muted">+{(d.attachments?.length ?? 0) - thumbs.length}</span>}

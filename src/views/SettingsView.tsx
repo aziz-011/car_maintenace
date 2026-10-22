@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EmailSettings } from '../components/EmailSettings';
 import { PrefsCard } from '../components/PrefsCard';
 import { ReceiptAiSettings } from '../components/ReceiptAiSettings';
@@ -37,7 +37,24 @@ export function SettingsView(props: Props) {
   const [csvMessage, setCsvMessage] = useState('');
   const [copied, setCopied] = useState('');
   const [name, setName] = useState(props.driverName);
-  const feedUrl = `${location.origin}/calendar.ics`;
+  // Inside Home Assistant the page sits behind its login, which calendar apps and home-screen
+  // links can't pass, so those use the add-on's direct address when one is set.
+  const inHomeAssistant = location.pathname.includes('/hassio_ingress/');
+  const [direct, setDirect] = useState<string | null>(null);
+  useEffect(() => {
+    if (!inHomeAssistant) return;
+    fetch('api/settings')
+      .then((r) => r.json())
+      .then((s) => setDirect(s.appUrl ?? null))
+      .catch(() => setDirect(null));
+  }, [inHomeAssistant]);
+  const here = inHomeAssistant ? (direct ? `${direct}/` : null) : new URL('.', location.href).href;
+  const feedUrl = `${here}calendar.ics`;
+  const needsDirect = inHomeAssistant && !direct && (
+    <p className="hint warn">
+      {t('Inside Home Assistant these links would need its login. Set "Address for email links" in the add-on Configuration (e.g. http://homeassistant.local:8080) to get links that work from your phone and calendar.')}
+    </p>
+  );
   const upcoming = calendarItems(data, today()).length;
   const own = <T extends { vehicleId: string }>(list: T[]) => list.filter((x) => x.vehicleId === vehicle.id);
 
@@ -100,8 +117,8 @@ export function SettingsView(props: Props) {
     );
   };
 
-  const addUrl = `${location.origin}/?add=fuel`;
-  const scanUrl = `${location.origin}/?add=receipt`;
+  const addUrl = `${here}?add=fuel`;
+  const scanUrl = `${here}?add=receipt`;
 
   return (
     <div className="stack">
@@ -177,7 +194,8 @@ export function SettingsView(props: Props) {
           <p className="muted">
             {t('Open one of these links on your phone, then add it to the home screen (Chrome: menu ⋮ → Add to Home screen; iPhone Safari: Share → Add to Home Screen). The icon opens straight to a new fill-up, with your usual station and price already filled in.')}
           </p>
-          {[
+          {needsDirect}
+          {here && [
             { url: addUrl, label: t('New fill-up') },
             { url: scanUrl, label: t('New fill-up from a receipt photo') },
           ].map((l) => (
@@ -238,12 +256,13 @@ export function SettingsView(props: Props) {
                 <p className="muted">
                   {t("Subscribe to this address in your phone's calendar so it always shows the current dates (on iPhone: Settings → Calendar → Accounts → Add Subscribed Calendar). It works while you're on your home Wi-Fi.")}
                 </p>
-                <div className="copy-row">
+                {needsDirect}
+                {here && <div className="copy-row">
                   <code>{feedUrl}</code>
                   <button className="btn small" onClick={() => void copy(feedUrl)}>
                     {copied === feedUrl ? t('Copied') : t('Copy')}
                   </button>
-                </div>
+                </div>}
               </>
             )}
             <div className="quick-actions">

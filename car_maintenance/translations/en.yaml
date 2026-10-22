@@ -1,0 +1,9 @@
+configuration:
+  app_url:
+    name: Address for email links
+    description: >-
+      The address your phone uses to open the app, put in the reminder emails,
+      e.g. http://homeassistant.local:8080 (direct port) or your Home Assistant
+      address. Leave empty if you don't use email reminders.
+network:
+  8080/tcp: Direct access on the home network (calendar feed, email links). Leave empty to use the app only through Home Assistant.

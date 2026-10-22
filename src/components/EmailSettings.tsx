@@ -50,7 +50,7 @@ export function EmailSettings() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api<SettingsResponse>('/api/settings')
+    api<SettingsResponse>('api/settings')
       .then((s) => {
         setConfig(s.email);
         setProviders(s.providers);
@@ -64,7 +64,7 @@ export function EmailSettings() {
   const help = HELP[config.provider];
 
   const save = async (extra: object = {}) => {
-    const s = await api<SettingsResponse>('/api/settings', {
+    const s = await api<SettingsResponse>('api/settings', {
       method: 'PUT',
       body: JSON.stringify({ email: { ...config, apiKey, ...extra } }),
     });
@@ -95,21 +95,21 @@ export function EmailSettings() {
   const sendTest = () =>
     run(async () => {
       await save();
-      await api('/api/email/test', { method: 'POST' });
+      await api('api/email/test', { method: 'POST' });
       return t('Test email sent to {to}. Check your inbox (and spam folder).', { to: config.to });
     });
 
   const sendCheckin = () =>
     run(async () => {
       await save();
-      await api('/api/email/checkin', { method: 'POST' });
+      await api('api/email/checkin', { method: 'POST' });
       return t('Check-in email sent to {to}.', { to: config.to });
     });
 
   const checkNow = () =>
     run(async () => {
       await save();
-      const r = await api<{ reminders?: number; backup?: boolean; skipped?: string }>('/api/email/check', { method: 'POST' });
+      const r = await api<{ reminders?: number; backup?: boolean; skipped?: string }>('api/email/check', { method: 'POST' });
       if (r.skipped) return t(r.skipped);
       if (!r.reminders && !r.backup) return t('Nothing new to send: you already got an email for everything due.');
       return r.backup ? t('Sent {n} reminder(s) and a backup.', { n: r.reminders ?? 0 }) : t('Sent {n} reminder(s).', { n: r.reminders ?? 0 });

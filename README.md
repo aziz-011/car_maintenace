@@ -47,6 +47,15 @@ Open **https://claude.ai/artifact/D1eAVvzCYyEhfd9KmmMVQB** while signed in to Cl
 
 To update that page after changing the code: `npm run build:claude`, then publish `dist-claude/car-maintenance.html` to the same artifact.
 
+## Run it in Home Assistant
+
+The app can run as a Home Assistant add-on, in the sidebar and in the Home Assistant phone app, with its data in Home Assistant backups and emails sent without a PC:
+
+1. **Settings → Add-ons → Add-on Store → ⋮ → Repositories**, add `https://github.com/aziz-011/car_maintenace`.
+2. Install **Car Maintenance**, turn on **Show in sidebar**, and start it.
+
+Details (direct address, moving your data from the PC version) are in [car_maintenance/DOCS.md](car_maintenance/DOCS.md).
+
 ## Run it on your PC for your whole network
 
 The app runs on your PC and you open it from any phone, tablet or computer on the same Wi-Fi. All devices share the same data, saved in a file on the PC.
@@ -131,6 +140,9 @@ npm run build    # production build in dist/
 npm run build:single  # standalone car-maintenance.html (open it directly, no server)
 npm run build:claude  # the claude.ai version in dist-claude/
 npm start        # run the home server (built to dist-server/ by npm run build)
+npm run build:addon   # copy the build into the Home Assistant add-on (car_maintenance/app/)
 ```
 
 Built with React, TypeScript and Vite.
+
+To release a new add-on version: run `npm run build:addon`, raise `version` in `car_maintenance/config.yaml`, add a line to `car_maintenance/CHANGELOG.md`, and push. Home Assistant then offers the update.

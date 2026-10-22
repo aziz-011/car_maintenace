@@ -113,7 +113,7 @@ function useServerData() {
     if (mode.current) setStatus('saving');
     let ok = false;
     try {
-      const state = await fetchState('/api/ops', {
+      const state = await fetchState('api/ops', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ops }),
@@ -151,7 +151,7 @@ function useServerData() {
     if (mode.current === 'local') return;
     if (pending.current.length || inflight.current) return flush();
     try {
-      const state = await fetchState('/api/data');
+      const state = await fetchState('api/data');
       mode.current = 'server';
       saveCache(state);
       if (state.version !== version.current && pending.current.length === 0 && !inflight.current) {

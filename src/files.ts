@@ -50,7 +50,7 @@ export async function uploadAttachment(file: File, backend: Backend): Promise<At
   }
 
   if (backend === 'server') {
-    const res = await fetch(`/api/files?name=${encodeURIComponent(name)}`, {
+    const res = await fetch(`api/files?name=${encodeURIComponent(name)}`, {
       method: 'POST',
       headers: { 'Content-Type': type },
       body: blob,
@@ -65,3 +65,10 @@ export async function uploadAttachment(file: File, backend: Backend): Promise<At
 }
 
 export const isImage = (a: Attachment) => a.type.startsWith('image/');
+
+/**
+ * Where to load an attachment from. Home-server photos are addressed relative
+ * to the page, so they also load when the app runs under a path (Home
+ * Assistant); photos saved by earlier versions start with "/files/".
+ */
+export const fileUrl = (a: Attachment) => (a.url.startsWith('/files/') ? a.url.slice(1) : a.url);

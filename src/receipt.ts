@@ -71,7 +71,7 @@ export async function canReadReceipts(backend: Backend): Promise<boolean> {
   }
   if (backend === 'server') {
     try {
-      const res = await fetch('/api/settings', { cache: 'no-store' });
+      const res = await fetch('api/settings', { cache: 'no-store' });
       return !!(await res.json()).ai?.hasKey;
     } catch {
       return false;
@@ -93,7 +93,7 @@ export async function readReceipt(photo: Blob, backend: Backend, stations: reado
       throw new Error(t('Could not read this receipt. Try a sharper photo, or fill in the fields.'));
     }
   }
-  const res = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': photo.type || 'image/jpeg' }, body: photo });
+  const res = await fetch('api/scan', { method: 'POST', headers: { 'Content-Type': photo.type || 'image/jpeg' }, body: photo });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error ?? t('Could not read this receipt. Try a sharper photo, or fill in the fields.'));
   return cleanReceipt(body);

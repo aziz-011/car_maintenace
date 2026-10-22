@@ -1,0 +1,10 @@
+configuration:
+  app_url:
+    name: Adresse pour les liens des e-mails
+    description: >-
+      L’adresse que votre téléphone utilise pour ouvrir l’application, mise dans
+      les e-mails de rappel, par ex. http://homeassistant.local:8080 (port direct)
+      ou l’adresse de votre Home Assistant. Laissez vide si vous n’utilisez pas
+      les rappels par e-mail.
+network:
+  8080/tcp: Accès direct sur le réseau de la maison (calendrier, liens des e-mails). Laissez vide pour utiliser l’application seulement via Home Assistant.

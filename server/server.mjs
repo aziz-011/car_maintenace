@@ -136,6 +136,8 @@ function publicSettings() {
     email: { ...email, ...keyInfo(apiKey) },
     ai: keyInfo(settings.ai.apiKey),
     providers: Object.fromEntries(Object.entries(PROVIDERS).map(([id, p]) => [id, p.label])),
+    // In Home Assistant the page is reached through its login; this is the direct address for calendar apps and phones.
+    appUrl: process.env.APP_URL?.replace(/\/$/, '') || null,
   };
 }
 
@@ -183,7 +185,8 @@ function lanAddresses() {
     .map((a) => a.address);
 }
 
-const appUrl = () => `http://${lanAddresses()[0] ?? 'localhost'}:${PORT}`;
+/** The address put in emails; set APP_URL when the server's own address is not the one devices use (e.g. in Home Assistant). */
+const appUrl = () => process.env.APP_URL?.replace(/\/$/, '') || `http://${lanAddresses()[0] ?? 'localhost'}:${PORT}`;
 
 function backupAttachment() {
   return {
@@ -290,7 +293,7 @@ const routes = {
     const body = await readRaw(req, MAX_FILE);
     const id = randomBytes(12).toString('hex');
     await writeFile(join(FILES_DIR, id + ext), body);
-    return [200, { id, url: `/files/${id}${ext}` }];
+    return [200, { id, url: `files/${id}${ext}` }];
   },
   'GET /api/settings': async () => [200, publicSettings()],
   'GET /api/settings/ai': async () => [200, publicSettings()],
@@ -386,11 +389,17 @@ if (!existsSync(join(DIST, 'index.html'))) console.warn('Warning: dist/ is missi
 
 server.listen(PORT, HOST, () => {
   console.log('\nCar Maintenance is running.\n');
-  console.log(`  On this PC:        http://localhost:${PORT}`);
-  for (const ip of lanAddresses()) console.log(`  On your network:   http://${ip}:${PORT}`);
+  if (process.env.SUPERVISOR_TOKEN) {
+    // Running as a Home Assistant add-on: the container's own addresses mean nothing to the user.
+    console.log('  Open it from the Home Assistant sidebar (Car Maintenance).');
+    if (process.env.APP_URL) console.log(`  Direct address:    ${process.env.APP_URL}`);
+  } else {
+    console.log(`  On this PC:        http://localhost:${PORT}`);
+    for (const ip of lanAddresses()) console.log(`  On your network:   http://${ip}:${PORT}`);
+  }
   console.log(`\n  Your data:         ${DATA_DIR}`);
   console.log(`  Email reminders:   ${settings.email.enabled ? `on, to ${settings.email.to}` : 'off (turn on in Settings)'}`);
-  console.log('\n  Keep this window open. Press Ctrl+C to stop.\n');
+  if (!process.env.SUPERVISOR_TOKEN) console.log('\n  Keep this window open. Press Ctrl+C to stop.\n');
   setTimeout(scheduledCheck, 30_000);
   setInterval(scheduledCheck, CHECK_EVERY_MS);
 });

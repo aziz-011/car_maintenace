@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { isImage, uploadAttachment, type Backend } from '../files';
+import { fileUrl, isImage, uploadAttachment, type Backend } from '../files';
 import { t } from '../i18n';
 import type { Attachment } from '../types';
 import { Icon } from './Icon';
@@ -39,8 +39,8 @@ export function AttachmentField({ value, onChange, backend, label }: Props) {
       <div className="attachments">
         {value.map((a) => (
           <div key={a.id} className="attachment">
-            <a href={a.url} target="_blank" rel="noreferrer" title={a.name}>
-              {isImage(a) ? <img src={a.url} alt={a.name} loading="lazy" /> : <span className="attachment-doc">PDF</span>}
+            <a href={fileUrl(a)} target="_blank" rel="noreferrer" title={a.name}>
+              {isImage(a) ? <img src={fileUrl(a)} alt={a.name} loading="lazy" /> : <span className="attachment-doc">PDF</span>}
             </a>
             <button type="button" aria-label={t('Remove {name}', { name: a.name })} onClick={() => onChange(value.filter((x) => x.id !== a.id))}>
               ×

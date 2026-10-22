@@ -1,5 +1,5 @@
 import { Icon } from '../components/Icon';
-import { isImage } from '../files';
+import { fileUrl, isImage } from '../files';
 import { fmtDate, fmtKm } from '../format';
 import { plural, t } from '../i18n';
 import { issueRepeats } from '../insights';
@@ -64,8 +64,8 @@ export function FaultsView({ issues, services, onAdd, onEdit, onDelete }: Props)
                   {thumbs.length > 0 && (
                     <div className="thumbs">
                       {thumbs.map((a) => (
-                        <a key={a.id} href={a.url} target="_blank" rel="noreferrer">
-                          <img src={a.url} alt={a.name} loading="lazy" />
+                        <a key={a.id} href={fileUrl(a)} target="_blank" rel="noreferrer">
+                          <img src={fileUrl(a)} alt={a.name} loading="lazy" />
                         </a>
                       ))}
                     </div>

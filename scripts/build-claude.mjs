@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const dist = new URL('../dist/', import.meta.url);
-const read = (p) => readFileSync(new URL(p.replace(/^\//, ''), dist), 'utf8');
+const read = (p) => readFileSync(new URL(p.replace(/^\.?\//, ''), dist), 'utf8');
 const index = read('index.html');
 const js = read(index.match(/<script type="module" crossorigin src="([^"]+)"><\/script>/)[1]);
 const css = read(index.match(/<link rel="stylesheet" crossorigin href="([^"]+)">/)[1]);

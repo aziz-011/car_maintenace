@@ -13,7 +13,8 @@
     "start": "node dist-server/server.mjs",
     "serve": "npm run build && npm start",
     "build:server": "esbuild server/server.mjs server/weekly-report.mjs --bundle --platform=node --format=esm --target=node18 --outdir=dist-server --log-level=warning --out-extension:.js=.mjs",
-    "build:claude": "npm run build && node scripts/build-claude.mjs"
+    "build:claude": "npm run build && node scripts/build-claude.mjs",
+    "build:addon": "npm run build && node scripts/build-addon.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.0.0",

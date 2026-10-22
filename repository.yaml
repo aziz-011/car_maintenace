@@ -1,0 +1,5 @@
+# Lets Home Assistant install the add-on straight from this GitHub repository:
+# Settings → Add-ons → Add-on Store → ⋮ → Repositories → add the repository URL.
+name: Car Maintenance add-ons
+url: https://github.com/aziz-011/car_maintenace
+maintainer: aziz-011
