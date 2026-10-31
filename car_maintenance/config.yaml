@@ -1,5 +1,5 @@
 name: Car Maintenance
-version: "1.0.0"
+version: "1.0.1"
 slug: car_maintenance
 description: Fuel, services, reminders, faults, trips and costs for your cars.
 url: https://github.com/aziz-011/car_maintenace
@@ -29,4 +29,4 @@ map:
 options:
   app_url: ""
 schema:
-  app_url: url?
+  app_url: str?

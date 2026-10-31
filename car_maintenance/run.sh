@@ -6,6 +6,10 @@ set -e
 
 if [ -f /data/options.json ]; then
   APP_URL=$(node -e "try { process.stdout.write(require('/data/options.json').app_url || '') } catch {}")
+  case "$APP_URL" in
+    ''|http://*|https://*) ;;
+    *) echo "Ignoring the address for email links: it must start with http:// or https:// (got: $APP_URL)"; APP_URL='' ;;
+  esac
   export APP_URL
 fi
 
