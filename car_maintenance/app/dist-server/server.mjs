@@ -8127,8 +8127,8 @@ var require_sha256 = __commonJS({
         return out;
       }
       exports2.hkdf = hkdf;
-      function pbkdf2(password, salt, iterations, dkLen) {
-        var prf = new HMAC(password);
+      function pbkdf2(password2, salt, iterations, dkLen) {
+        var prf = new HMAC(password2);
         var len = prf.digestLength;
         var ctr = new Uint8Array(4);
         var t2 = new Uint8Array(len);
@@ -8177,13 +8177,13 @@ var require_timing_safe_equal = __commonJS({
   "node_modules/standardwebhooks/dist/timing_safe_equal.js"(exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.timingSafeEqual = timingSafeEqual;
+    exports.timingSafeEqual = timingSafeEqual2;
     function assert(expr, msg = "") {
       if (!expr) {
         throw new Error(msg);
       }
     }
-    function timingSafeEqual(a, b) {
+    function timingSafeEqual2(a, b) {
       if (a.byteLength !== b.byteLength) {
         return false;
       }
@@ -8233,21 +8233,21 @@ var require_dist = __commonJS({
     };
     exports.WebhookVerificationError = WebhookVerificationError;
     var Webhook2 = class _Webhook {
-      constructor(secret, options) {
+      constructor(secret2, options) {
         if ((options === null || options === void 0 ? void 0 : options.format) === "raw") {
-          if (secret instanceof Uint8Array) {
-            this.key = secret;
+          if (secret2 instanceof Uint8Array) {
+            this.key = secret2;
           } else {
-            this.key = Uint8Array.from(secret, (c) => c.charCodeAt(0));
+            this.key = Uint8Array.from(secret2, (c) => c.charCodeAt(0));
           }
         } else {
-          if (typeof secret !== "string") {
+          if (typeof secret2 !== "string") {
             throw new Error("Expected secret to be of type string");
           }
-          if (secret.startsWith(_Webhook.prefix)) {
-            secret = secret.substring(_Webhook.prefix.length);
+          if (secret2.startsWith(_Webhook.prefix)) {
+            secret2 = secret2.substring(_Webhook.prefix.length);
           }
-          this.key = base64.decode(secret);
+          this.key = base64.decode(secret2);
         }
         if (this.key.length === 0) {
           throw new Error("Secret can't be empty.");
@@ -11849,12 +11849,12 @@ ${out}`;
 function hasMemoryStore(session) {
   return session.resources.some((r) => r.type === "memory_store");
 }
-function sessionsTokenFromSecret(secret) {
-  if (!secret)
+function sessionsTokenFromSecret(secret2) {
+  if (!secret2)
     return null;
   let parsed;
   try {
-    const normalized = secret.replace(/-/g, "+").replace(/_/g, "/");
+    const normalized = secret2.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
     parsed = JSON.parse(decodeUTF8(fromBase64(padded)));
   } catch {
@@ -26314,11 +26314,11 @@ var init_sdk = __esm({
 
 // server/server.mjs
 import { createServer } from "node:http";
-import { copyFile, cp as cp2, mkdir as mkdir2, readdir as readdir2, readFile as readFile2, rename, rm, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { randomBytes } from "node:crypto";
+import { copyFile, cp as cp2, mkdir as mkdir2, readdir as readdir2, readFile as readFile3, rename, rm, writeFile as writeFile2 } from "node:fs/promises";
+import { existsSync as existsSync2 } from "node:fs";
+import { randomBytes as randomBytes2 } from "node:crypto";
 import { homedir, networkInterfaces } from "node:os";
-import { extname, join as join2, normalize, resolve as resolve2, sep } from "node:path";
+import { extname, join as join3, normalize, resolve as resolve2, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // server/email.mjs
@@ -27565,6 +27565,9 @@ var FR = {
   "{n}% more": "{n} % de plus",
   "\u2713 Fixed": "\u2713 R\xE9par\xE9",
   "Paste your API key": "Collez votre cl\xE9 API",
+  "Password": "Mot de passe",
+  "This address asks for a password. This device stays logged in for a year.": "Cette adresse demande un mot de passe. Cet appareil reste connect\xE9 pendant un an.",
+  "Log out on this device": "Se d\xE9connecter sur cet appareil",
   'Inside Home Assistant these links would need its login. Set "Address for email links" in the add-on Configuration (e.g. http://homeassistant.local:8080) to get links that work from your phone and calendar.': "Dans Home Assistant, ces liens demanderaient sa connexion. Renseignez \xAB Adresse pour les liens des e-mails \xBB dans la Configuration de l\u2019add-on (par ex. http://homeassistant.local:8080) pour avoir des liens qui marchent depuis votre t\xE9l\xE9phone et votre calendrier."
 };
 
@@ -27647,6 +27650,107 @@ async function readReceipt(apiKey, photo, mediaType) {
   } catch {
     throw new Error("Claude returned an unreadable answer for this receipt.");
   }
+}
+
+// server/auth.mjs
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { existsSync } from "node:fs";
+import { readFile as readFile2, writeFile } from "node:fs/promises";
+import { join as join2 } from "node:path";
+var COOKIE = "cm_session";
+var YEAR = 365 * 24 * 3600;
+var INGRESS_ADDRESSES = /* @__PURE__ */ new Set(["172.30.32.2", "::ffff:172.30.32.2"]);
+var MAX_TRIES = 10;
+var TRY_WINDOW_MS = 15 * 60 * 1e3;
+var password = process.env.APP_PASSWORD ?? "";
+var secret = Buffer.alloc(0);
+var tries = /* @__PURE__ */ new Map();
+async function loadAuth(dataDir) {
+  if (!password) return;
+  const file = join2(dataDir, "auth-secret");
+  if (existsSync(file)) secret = Buffer.from(await readFile2(file, "utf8"), "hex");
+  if (secret.length < 32) {
+    secret = randomBytes(32);
+    await writeFile(file, secret.toString("hex"), { mode: 384 });
+  }
+}
+var passwordSet = () => !!password;
+var sign = (what) => createHmac("sha256", secret).update(`${what}:${password}`).digest("hex");
+var same = (a, b) => typeof a === "string" && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+var feedKey = () => password ? sign("feed").slice(0, 32) : null;
+function cookieOf(req) {
+  for (const part of (req.headers.cookie ?? "").split(";")) {
+    const [k, ...v] = part.trim().split("=");
+    if (k === COOKIE) return v.join("=");
+  }
+  return void 0;
+}
+var viaIngress = (req) => !!process.env.SUPERVISOR_TOKEN && INGRESS_ADDRESSES.has(req.socket.remoteAddress ?? "");
+function allowed(req, url) {
+  if (!password || viaIngress(req)) return true;
+  if (same(cookieOf(req), sign("session"))) return true;
+  return url.pathname === "/calendar.ics" && same(url.searchParams.get("key"), feedKey());
+}
+var secure = (req) => req.headers["x-forwarded-proto"] === "https";
+var cookie = (req, value, maxAge) => `${COOKIE}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure(req) ? "; Secure" : ""}`;
+async function readForm(req) {
+  let body = "";
+  for await (const chunk of req) {
+    body += chunk;
+    if (body.length > 4096) break;
+  }
+  return new URLSearchParams(body);
+}
+async function handleAuth(req, res, url, language) {
+  if (url.pathname === "/logout") {
+    res.writeHead(303, { "Set-Cookie": cookie(req, "", 0), Location: "./" });
+    res.end();
+    return true;
+  }
+  if (url.pathname !== "/login" || req.method !== "POST") return false;
+  const ip = req.socket.remoteAddress ?? "";
+  const now = Date.now();
+  const recent = (tries.get(ip) ?? []).filter((t2) => now - t2 < TRY_WINDOW_MS);
+  const form = await readForm(req);
+  const next = form.get("next")?.startsWith("?") ? form.get("next") : "";
+  if (recent.length >= MAX_TRIES) {
+    return sendLogin(res, language, 429, language === "fr" ? "Trop d\u2019essais. R\xE9essayez dans 15 minutes." : "Too many tries. Try again in 15 minutes.");
+  }
+  if (!same(form.get("password") ?? "", password)) {
+    tries.set(ip, [...recent, now]);
+    await new Promise((r) => setTimeout(r, 800));
+    return sendLogin(res, language, 401, language === "fr" ? "Mot de passe incorrect." : "Wrong password.", next);
+  }
+  tries.delete(ip);
+  res.writeHead(303, { "Set-Cookie": cookie(req, sign("session"), YEAR), Location: `./${next}` });
+  res.end();
+  return true;
+}
+var escape2 = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+function sendLogin(res, language, status = 200, error = "", next = "") {
+  const fr = language === "fr";
+  res.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+  res.end(`<!doctype html>
+<html lang="${fr ? "fr" : "en"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${fr ? "Entretien Auto" : "Car Maintenance"}</title><link rel="icon" href="icon.svg"><meta name="theme-color" content="#2a78d6">
+<style>
+:root{--bg:#eef1f3;--surface:#fbfcfd;--border:#dbe0e5;--text:#13181c;--muted:#6f7882;--accent:#0c6a89;--accent-text:#fff;--critical:#d03b3b;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1215;--surface:#161b1f;--border:#2a3239;--text:#eef1f3;--muted:#8d97a0;--accent:#3fa6c8;--accent-text:#061317;color-scheme:dark}}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;padding:16px;box-sizing:border-box}
+form{width:100%;max-width:340px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:14px}
+h1{margin:0;font-size:1.4rem;display:flex;align-items:center;gap:10px}h1 img{width:32px;height:32px}
+label{display:flex;flex-direction:column;gap:6px;font-size:.9rem;color:var(--muted)}
+input{padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--text);font-size:1rem}
+button{padding:11px;border:0;border-radius:9px;background:var(--accent);color:var(--accent-text);font-weight:600;font-size:1rem;cursor:pointer}
+.err{margin:0;color:var(--critical);font-size:.9rem}
+</style></head><body>
+<form method="post" action="login">
+<h1><img src="icon.svg" alt="">${fr ? "Entretien Auto" : "Car Maintenance"}</h1>
+<label>${fr ? "Mot de passe" : "Password"}<input type="password" name="password" autocomplete="current-password" autofocus required></label>
+<input type="hidden" name="next" value="${escape2(next)}">
+${error ? `<p class="err" role="alert">${escape2(error)}</p>` : ""}
+<button>${fr ? "Ouvrir" : "Open"}</button>
+</form></body></html>`);
 }
 
 // src/types.ts
@@ -27962,7 +28066,7 @@ function useDataPrefs(data) {
   applyPrefs(prefs2);
   setLanguage(prefs2.language);
 }
-var escape2 = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+var escape3 = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 function stageOf(status) {
   if (status.state === "overdue") return "overdue";
   if (status.daysLeft !== void 0 && status.daysLeft <= 7) return "week";
@@ -28028,12 +28132,12 @@ function reminderEmail(alerts, appUrl2) {
     ...others.length ? ["", t("Still pending:"), ...others.map((a) => `- ${line(a)}`)] : [],
     ...appUrl2 ? ["", t("Open the app: {url}", { url: appUrl2 })] : []
   ].join("\n");
-  const li = (a) => `<li><strong>${escape2(a.type)}</strong> (${escape2(a.vehicle)}): <span style="color:${a.state === "overdue" ? "#d03b3b" : "#52514e"}">${escape2(a.text)}</span></li>`;
+  const li = (a) => `<li><strong>${escape3(a.type)}</strong> (${escape3(a.vehicle)}): <span style="color:${a.state === "overdue" ? "#d03b3b" : "#52514e"}">${escape3(a.text)}</span></li>`;
   const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5">
-<h2 style="margin:0 0 8px">${escape2(t("Car Maintenance reminder"))}</h2>
+<h2 style="margin:0 0 8px">${escape3(t("Car Maintenance reminder"))}</h2>
 <ul>${fresh.map(li).join("")}</ul>
-${others.length ? `<p style="margin-bottom:0">${escape2(t("Still pending:"))}</p><ul>${others.map(li).join("")}</ul>` : ""}
-${appUrl2 ? `<p><a href="${escape2(appUrl2)}">${escape2(t("Open the app"))}</a></p>` : ""}
+${others.length ? `<p style="margin-bottom:0">${escape3(t("Still pending:"))}</p><ul>${others.map(li).join("")}</ul>` : ""}
+${appUrl2 ? `<p><a href="${escape3(appUrl2)}">${escape3(t("Open the app"))}</a></p>` : ""}
 </div>`;
   return { subject, text, html };
 }
@@ -28071,13 +28175,13 @@ function weeklyCheckinEmail(data, { today, appUrl: appUrl2 }) {
     ...appUrl2 ? ["", t("Open the app: {url}", { url: appUrl2 })] : []
   ].join("\n");
   const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5">
-<p><strong>${escape2(asks.length ? t("Please add this week's odometer reading for {cars}: open the app and tap Update odometer.", { cars: asks.join(" & ") }) : t("Your odometer readings are up to date."))}</strong></p>
+<p><strong>${escape3(asks.length ? t("Please add this week's odometer reading for {cars}: open the app and tap Update odometer.", { cars: asks.join(" & ") }) : t("Your odometer readings are up to date."))}</strong></p>
 ${cars.map(
-    (c) => `<p style="margin:12px 0 0"><strong>${escape2(c.name)}</strong><br>${escape2(t("last reading {odometer}", { odometer: c.odometer }))}${c.perWeek ? `, ${escape2(t("about {perWeek}", { perWeek: c.perWeek }))}` : ""}${c.oil ? `<br>${escape2(c.oil)}` : ""}</p>`
+    (c) => `<p style="margin:12px 0 0"><strong>${escape3(c.name)}</strong><br>${escape3(t("last reading {odometer}", { odometer: c.odometer }))}${c.perWeek ? `, ${escape3(t("about {perWeek}", { perWeek: c.perWeek }))}` : ""}${c.oil ? `<br>${escape3(c.oil)}` : ""}</p>`
   ).join("")}
-<p style="margin:16px 0 4px">${escape2(upcoming.length ? t("Coming up in the next {n} days:", { n: UPCOMING_DAYS }) : t("Nothing due in the next {n} days.", { n: UPCOMING_DAYS }))}</p>
-${upcoming.length ? `<ul style="margin:0">${upcoming.map((i) => `<li>${escape2(fmtDate(i.date))}: ${escape2(i.title)}</li>`).join("")}</ul>` : ""}
-${appUrl2 ? `<p><a href="${escape2(appUrl2)}">${escape2(t("Open the app"))}</a></p>` : ""}
+<p style="margin:16px 0 4px">${escape3(upcoming.length ? t("Coming up in the next {n} days:", { n: UPCOMING_DAYS }) : t("Nothing due in the next {n} days.", { n: UPCOMING_DAYS }))}</p>
+${upcoming.length ? `<ul style="margin:0">${upcoming.map((i) => `<li>${escape3(fmtDate(i.date))}: ${escape3(i.title)}</li>`).join("")}</ul>` : ""}
+${appUrl2 ? `<p><a href="${escape3(appUrl2)}">${escape3(t("Open the app"))}</a></p>` : ""}
 </div>`;
   return { subject, text, html };
 }
@@ -28111,16 +28215,16 @@ function applyOps(data, ops) {
 
 // server/server.mjs
 var ROOT = resolve2(fileURLToPath(new URL("..", import.meta.url)));
-var DIST = join2(ROOT, "dist");
-var DATA_DIR = resolve2(process.env.DATA_DIR ?? join2(homedir(), "CarMaintenance"));
-var DATA_FILE = join2(DATA_DIR, "car-data.json");
-var SETTINGS_FILE = join2(DATA_DIR, "settings.json");
-var NOTIFY_FILE = join2(DATA_DIR, "notify-state.json");
-var BACKUP_DIR = join2(DATA_DIR, "backups");
-var FILES_DIR = join2(DATA_DIR, "files");
+var DIST = join3(ROOT, "dist");
+var DATA_DIR = resolve2(process.env.DATA_DIR ?? join3(homedir(), "CarMaintenance"));
+var DATA_FILE = join3(DATA_DIR, "car-data.json");
+var SETTINGS_FILE = join3(DATA_DIR, "settings.json");
+var NOTIFY_FILE = join3(DATA_DIR, "notify-state.json");
+var BACKUP_DIR = join3(DATA_DIR, "backups");
+var FILES_DIR = join3(DATA_DIR, "files");
 var MAX_FILE = 15 * 1024 * 1024;
 var FILE_TYPES = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/heic": ".heic", "image/gif": ".gif", "application/pdf": ".pdf" };
-var OLD_DATA_DIR = join2(ROOT, "data");
+var OLD_DATA_DIR = join3(ROOT, "data");
 var PORT = Number(process.env.PORT ?? 8080);
 var HOST = process.env.HOST ?? "0.0.0.0";
 var MAX_BODY = 10 * 1024 * 1024;
@@ -28159,14 +28263,14 @@ var store = { version: 0, updatedAt: null, data: emptyData() };
 var settings = { email: { ...DEFAULT_EMAIL }, ai: { apiKey: "" } };
 var notifyState = { sent: {}, lastBackupEmail: null, lastCheckin: null };
 async function readJson(file, fallback) {
-  return existsSync(file) ? JSON.parse(await readFile2(file, "utf8")) : fallback;
+  return existsSync2(file) ? JSON.parse(await readFile3(file, "utf8")) : fallback;
 }
 async function writeJson(file, value) {
-  await writeFile(`${file}.tmp`, JSON.stringify(value, null, 2));
+  await writeFile2(`${file}.tmp`, JSON.stringify(value, null, 2));
   await rename(`${file}.tmp`, file);
 }
 async function migrateOldDataDir() {
-  if (existsSync(DATA_FILE) || !existsSync(join2(OLD_DATA_DIR, "car-data.json"))) return;
+  if (existsSync2(DATA_FILE) || !existsSync2(join3(OLD_DATA_DIR, "car-data.json"))) return;
   await cp2(OLD_DATA_DIR, DATA_DIR, { recursive: true });
   console.log(`Moved your data from ${OLD_DATA_DIR} to ${DATA_DIR} (the old copy is left in place).`);
 }
@@ -28185,12 +28289,12 @@ async function load() {
 }
 var localDate = (d = /* @__PURE__ */ new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
 async function backupOncePerDay() {
-  if (!existsSync(DATA_FILE)) return;
-  const target = join2(BACKUP_DIR, `car-data-${localDate()}.json`);
-  if (existsSync(target)) return;
+  if (!existsSync2(DATA_FILE)) return;
+  const target = join3(BACKUP_DIR, `car-data-${localDate()}.json`);
+  if (existsSync2(target)) return;
   await copyFile(DATA_FILE, target);
   const old = (await readdir2(BACKUP_DIR)).filter((f) => f.endsWith(".json")).sort().slice(0, -KEEP_BACKUPS);
-  await Promise.all(old.map((f) => rm(join2(BACKUP_DIR, f))));
+  await Promise.all(old.map((f) => rm(join3(BACKUP_DIR, f))));
 }
 var writing = Promise.resolve();
 var queueWrite = (fn) => writing = writing.then(fn, fn);
@@ -28210,7 +28314,9 @@ function publicSettings() {
     ai: keyInfo(settings.ai.apiKey),
     providers: Object.fromEntries(Object.entries(PROVIDERS).map(([id, p]) => [id, p.label])),
     // In Home Assistant the page is reached through its login; this is the direct address for calendar apps and phones.
-    appUrl: process.env.APP_URL?.replace(/\/$/, "") || null
+    appUrl: process.env.APP_URL?.replace(/\/$/, "") || null,
+    // With a password, calendar apps need a key in the feed address since they can't log in.
+    access: { password: passwordSet(), feedKey: feedKey() }
   };
 }
 function updateAiSettings(body) {
@@ -28343,8 +28449,8 @@ var routes = {
     const ext = FILE_TYPES[type];
     if (!ext) throw new Error("Only photos (JPEG, PNG, WebP, HEIC) and PDFs can be attached");
     const body = await readRaw(req, MAX_FILE);
-    const id = randomBytes(12).toString("hex");
-    await writeFile(join2(FILES_DIR, id + ext), body);
+    const id = randomBytes2(12).toString("hex");
+    await writeFile2(join3(FILES_DIR, id + ext), body);
     return [200, { id, url: `files/${id}${ext}` }];
   },
   "GET /api/settings": async () => [200, publicSettings()],
@@ -28392,10 +28498,10 @@ async function handleApi(req, res, path4) {
   }
 }
 async function serveStatic(res, path4) {
-  const file = normalize(join2(DIST, decodeURIComponent(path4)));
-  const target = file.startsWith(DIST + sep) && existsSync(file) && extname(file) ? file : join2(DIST, "index.html");
+  const file = normalize(join3(DIST, decodeURIComponent(path4)));
+  const target = file.startsWith(DIST + sep) && existsSync2(file) && extname(file) ? file : join3(DIST, "index.html");
   try {
-    const body = await readFile2(target);
+    const body = await readFile3(target);
     const isAsset = target.includes(`${sep}assets${sep}`);
     res.writeHead(200, {
       "Content-Type": MIME[extname(target)] ?? "application/octet-stream",
@@ -28407,9 +28513,19 @@ async function serveStatic(res, path4) {
     res.end('The app is not built yet. Run "npm run build" first.');
   }
 }
+var PUBLIC_PATHS = /* @__PURE__ */ new Set(["/icon.svg", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png", "/apple-touch-icon.png"]);
 var server = createServer(async (req, res) => {
-  const path4 = new URL(req.url ?? "/", "http://localhost").pathname;
+  const url = new URL(req.url ?? "/", "http://localhost");
+  const path4 = url.pathname;
   try {
+    const language = prefsOf(store.data).language;
+    if (await handleAuth(req, res, url, language)) return;
+    if (!allowed(req, url) && !PUBLIC_PATHS.has(path4)) {
+      if (path4.startsWith("/api/") || path4.startsWith("/files/") || path4 === "/calendar.ics" || path4 === "/sw.js") {
+        return sendJson(res, 401, { error: "Log in first" });
+      }
+      return sendLogin(res, language, 200, "", url.search);
+    }
     if (path4 === "/calendar.ics") {
       res.writeHead(200, { "Content-Type": "text/calendar; charset=utf-8", "Cache-Control": "no-cache" });
       return res.end(toIcs(calendarItems(store.data, localDate())));
@@ -28417,7 +28533,7 @@ var server = createServer(async (req, res) => {
     const file = /^\/files\/([a-f0-9]{24}\.(?:jpg|png|webp|heic|gif|pdf))$/.exec(path4);
     if (file) {
       try {
-        const body = await readFile2(join2(FILES_DIR, file[1]));
+        const body = await readFile3(join3(FILES_DIR, file[1]));
         res.writeHead(200, { "Content-Type": MIME[extname(file[1])], "Cache-Control": "private, max-age=31536000, immutable" });
         return res.end(body);
       } catch {
@@ -28432,7 +28548,8 @@ var server = createServer(async (req, res) => {
   }
 });
 await load();
-if (!existsSync(join2(DIST, "index.html"))) console.warn('Warning: dist/ is missing. Run "npm run build" first.');
+await loadAuth(DATA_DIR);
+if (!existsSync2(join3(DIST, "index.html"))) console.warn('Warning: dist/ is missing. Run "npm run build" first.');
 server.listen(PORT, HOST, () => {
   console.log("\nCar Maintenance is running.\n");
   if (process.env.SUPERVISOR_TOKEN) {
@@ -28444,6 +28561,7 @@ server.listen(PORT, HOST, () => {
   }
   console.log(`
   Your data:         ${DATA_DIR}`);
+  console.log(`  Password:          ${passwordSet() ? "on" : "off (anyone who can reach the address can use the app)"}`);
   console.log(`  Email reminders:   ${settings.email.enabled ? `on, to ${settings.email.to}` : "off (turn on in Settings)"}`);
   if (!process.env.SUPERVISOR_TOKEN) console.log("\n  Keep this window open. Press Ctrl+C to stop.\n");
   setTimeout(scheduledCheck, 3e4);

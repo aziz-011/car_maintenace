@@ -6,5 +6,9 @@ configuration:
       les e-mails de rappel, par ex. http://homeassistant.local:8080 (port direct)
       ou l’adresse de votre Home Assistant. Laissez vide si vous n’utilisez pas
       les rappels par e-mail.
+  password:
+    name: Mot de passe pour l’adresse directe
+    description: >-
+      Demandé quand l’application est ouverte à sa propre adresse (port 8080 ou votre propre lien). Pas demandé dans la barre latérale de Home Assistant. Laissez vide pour aucun mot de passe, seulement sur le réseau de la maison.
 network:
   8080/tcp: Accès direct sur le réseau de la maison (calendrier, liens des e-mails). Laissez vide pour utiliser l’application seulement via Home Assistant.

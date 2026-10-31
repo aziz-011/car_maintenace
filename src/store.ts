@@ -60,6 +60,11 @@ class Rejected extends Error {}
 async function fetchState(url: string, init?: RequestInit): Promise<ServerState> {
   const res = await fetch(url, { cache: 'no-store', ...init });
   const isJson = res.headers.get('content-type')?.includes('application/json');
+  // Logged out (password changed, or the login expired): show the login page.
+  if (res.status === 401) {
+    location.reload();
+    throw new Error('Not logged in');
+  }
   if (res.status === 404 || !isJson) throw new NoServer();
   if (res.status === 400) throw new Rejected((await res.json()).error);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

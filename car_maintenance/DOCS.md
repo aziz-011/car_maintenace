@@ -14,9 +14,25 @@ The same app as the home-server version, running inside Home Assistant: fuel log
 
 **Address for email links** (`app_url`): the address your phone uses to reach the app directly, for example `http://homeassistant.local:8080`. It is put in reminder emails and used for the calendar feed and the phone shortcut links in Settings, which can't go through the Home Assistant login. Leave it empty if you don't need those.
 
-**Network → 8080/tcp**: the direct address on your home network (no Home Assistant login, like the PC version). Remove the port number to allow access only through Home Assistant. Change it if another add-on already uses 8080.
+**Password for the direct address** (`password`): asked when the app is opened at its own address (below). Empty means no password, fine only on your home network.
+
+**Network → 8080/tcp**: the app's own address. Remove the port number to allow access only through Home Assistant. Change it if another add-on already uses 8080.
 
 Everything else (language, units, email reminders, the Claude API key for reading receipts) is set in the app's own **Settings**.
+
+## A link of its own
+
+Besides the sidebar, the app has its own address, port 8080 on your Home Assistant machine. It opens the app alone, without Home Assistant around it, and is what you bookmark or add to your phone's home screen.
+
+1. **Set a password first**: Configuration tab, **Password for the direct address**, then restart the add-on. The address then shows a login page; each device stays logged in for a year. The sidebar never asks for it (Home Assistant's own login already protects it).
+2. Choose how you reach it:
+   - **At home**: `http://homeassistant.local:8080` or `http://<Home Assistant's IP>:8080`.
+   - **Anywhere, privately**: install the **Tailscale** add-on, and Tailscale on your phone. The same address then works away from home, and only your own devices can reach it. No domain needed.
+   - **Anywhere, at your own domain** (e.g. `https://car.yourdomain.com`): with a domain on Cloudflare, install the **Cloudflared** add-on and add a host for that name pointing to `http://<Home Assistant's IP>:8080`. Only do this with a password set.
+   - Home Assistant Cloud (Nabu Casa) gives remote access to Home Assistant, so to the sidebar, but not to an add-on's own port.
+3. Put that address in **Address for email links**, so emails, the calendar feed and the phone shortcuts use it.
+
+With a password, the calendar feed address in the app's Settings carries a key (calendar apps can't log in). Keep it private; changing the password changes the key.
 
 ## Your data
 
@@ -35,4 +51,4 @@ Everything else (language, units, email reminders, the Claude API key for readin
 
 - Emails are sent from Home Assistant, so they work as long as it is running (no PC needed).
 - Times (8:00 start for emails, the Sunday 18:00 check-in) follow the time zone set in Home Assistant.
-- The direct port has no password: don't forward it on your router.
+- Without a password the direct port is open to anyone on your network: don't forward it on your router; use Tailscale or Cloudflared with a password instead.

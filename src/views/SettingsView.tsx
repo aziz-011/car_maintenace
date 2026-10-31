@@ -41,15 +41,20 @@ export function SettingsView(props: Props) {
   // links can't pass, so those use the add-on's direct address when one is set.
   const inHomeAssistant = location.pathname.includes('/hassio_ingress/');
   const [direct, setDirect] = useState<string | null>(null);
+  const [access, setAccess] = useState<{ password: boolean; feedKey: string | null }>({ password: false, feedKey: null });
   useEffect(() => {
-    if (!inHomeAssistant) return;
+    if (backend !== 'server') return;
     fetch('api/settings')
       .then((r) => r.json())
-      .then((s) => setDirect(s.appUrl ?? null))
+      .then((s) => {
+        setDirect(s.appUrl ?? null);
+        if (s.access) setAccess(s.access);
+      })
       .catch(() => setDirect(null));
-  }, [inHomeAssistant]);
+  }, [backend]);
   const here = inHomeAssistant ? (direct ? `${direct}/` : null) : new URL('.', location.href).href;
-  const feedUrl = `${here}calendar.ics`;
+  // With a password, calendar apps get a key in the address since they can't log in.
+  const feedUrl = `${here}calendar.ics${access.feedKey ? `?key=${access.feedKey}` : ''}`;
   const needsDirect = inHomeAssistant && !direct && (
     <p className="hint warn">
       {t('Inside Home Assistant these links would need its login. Set "Address for email links" in the add-on Configuration (e.g. http://homeassistant.local:8080) to get links that work from your phone and calendar.')}
@@ -308,6 +313,18 @@ export function SettingsView(props: Props) {
         </p>
         {csvMessage && <p className="hint">{csvMessage}</p>}
       </section>
+
+      {access.password && !inHomeAssistant && (
+        <section className="card">
+          <h3>{t('Password')}</h3>
+          <p className="muted">{t('This address asks for a password. This device stays logged in for a year.')}</p>
+          <div className="quick-actions">
+            <a className="btn" href="logout">
+              {t('Log out on this device')}
+            </a>
+          </div>
+        </section>
+      )}
 
       <section className="card">
         <h3>{t('Backup')}</h3>

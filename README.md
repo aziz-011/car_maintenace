@@ -122,7 +122,7 @@ Create a Claude API key at https://console.anthropic.com (**API keys → Create 
 
 - **Fixed address:** your PC's network address can change after a router restart. To keep it the same, reserve an IP for your PC in your router's settings (often called "DHCP reservation").
 - **Another port:** set `PORT` before starting, e.g. `set PORT=3000` (Windows) or `PORT=3000 ./start-server.sh`.
-- **Security:** anyone on your Wi-Fi can open the app, and there is no password. Don't expose the port to the internet (no port forwarding on your router).
+- **Security:** without a password anyone on your Wi-Fi can open the app. To require one, start the server with `APP_PASSWORD` set (e.g. `set APP_PASSWORD=...` on Windows). Don't forward the port on your router; use a VPN such as Tailscale to reach it from outside.
 - **Moving data from the single-file version:** in the old file, Settings → Export JSON. Then in the server version, Settings → Import JSON.
 
 ## Single-file version

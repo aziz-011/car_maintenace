@@ -9,9 +9,11 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sendEmail, PROVIDERS } from './email.mjs';
 import { readReceipt } from './receipt.mjs';
+import { allowed, feedKey, handleAuth, loadAuth, passwordSet, sendLogin } from './auth.mjs';
 import { collectAlerts, reminderEmail, weeklyCheckinEmail } from './notify.mjs';
 import { calendarItems, toIcs } from '../src/calendar.ts';
 import { applyOps, emptyData, isAppData, normalizeData } from './ops.mjs';
+import { prefsOf } from '../src/types.ts';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DIST = join(ROOT, 'dist');
@@ -138,6 +140,8 @@ function publicSettings() {
     providers: Object.fromEntries(Object.entries(PROVIDERS).map(([id, p]) => [id, p.label])),
     // In Home Assistant the page is reached through its login; this is the direct address for calendar apps and phones.
     appUrl: process.env.APP_URL?.replace(/\/$/, '') || null,
+    // With a password, calendar apps need a key in the feed address since they can't log in.
+    access: { password: passwordSet(), feedKey: feedKey() },
   };
 }
 
@@ -358,9 +362,21 @@ async function serveStatic(res, path) {
   }
 }
 
+/** What the login page itself needs; everything else waits for the password. */
+const PUBLIC_PATHS = new Set(['/icon.svg', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png']);
+
 const server = createServer(async (req, res) => {
-  const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const path = url.pathname;
   try {
+    const language = prefsOf(store.data).language;
+    if (await handleAuth(req, res, url, language)) return;
+    if (!allowed(req, url) && !PUBLIC_PATHS.has(path)) {
+      if (path.startsWith('/api/') || path.startsWith('/files/') || path === '/calendar.ics' || path === '/sw.js') {
+        return sendJson(res, 401, { error: 'Log in first' });
+      }
+      return sendLogin(res, language, 200, '', url.search);
+    }
     // Calendar apps subscribe to this URL; it always reflects the current data.
     if (path === '/calendar.ics') {
       res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'no-cache' });
@@ -385,6 +401,7 @@ const server = createServer(async (req, res) => {
 });
 
 await load();
+await loadAuth(DATA_DIR);
 if (!existsSync(join(DIST, 'index.html'))) console.warn('Warning: dist/ is missing. Run "npm run build" first.');
 
 server.listen(PORT, HOST, () => {
@@ -398,6 +415,7 @@ server.listen(PORT, HOST, () => {
     for (const ip of lanAddresses()) console.log(`  On your network:   http://${ip}:${PORT}`);
   }
   console.log(`\n  Your data:         ${DATA_DIR}`);
+  console.log(`  Password:          ${passwordSet() ? 'on' : 'off (anyone who can reach the address can use the app)'}`);
   console.log(`  Email reminders:   ${settings.email.enabled ? `on, to ${settings.email.to}` : 'off (turn on in Settings)'}`);
   if (!process.env.SUPERVISOR_TOKEN) console.log('\n  Keep this window open. Press Ctrl+C to stop.\n');
   setTimeout(scheduledCheck, 30_000);

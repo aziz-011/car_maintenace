@@ -1,5 +1,5 @@
 name: Car Maintenance
-version: "1.0.1"
+version: "1.1.0"
 slug: car_maintenance
 description: Fuel, services, reminders, faults, trips and costs for your cars.
 url: https://github.com/aziz-011/car_maintenace
@@ -14,9 +14,10 @@ ingress: true
 ingress_port: 8080
 panel_icon: mdi:car-wrench
 panel_title: Car Maintenance
-# Optional direct address on the home network, for the calendar feed, email links
-# and phone shortcuts. Like the PC version it has no password: remove the port in
-# the add-on's Network settings if you only want access through Home Assistant.
+# The app's own address (http://<Home Assistant>:8080), for a link of its own, the
+# calendar feed, email links and phone shortcuts. Set a password before opening it
+# beyond your home network; remove the port in the Network settings to allow only
+# access through Home Assistant.
 ports:
   8080/tcp: 8080
 ports_description:
@@ -28,5 +29,7 @@ map:
     read_only: false
 options:
   app_url: ""
+  password: ""
 schema:
   app_url: str?
+  password: password?

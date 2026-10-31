@@ -673,5 +673,8 @@ export const FR: Record<string, string> = {
   "{n}% more": "{n} % de plus",
   "✓ Fixed": "✓ Réparé",
   "Paste your API key": "Collez votre clé API",
+  "Password": "Mot de passe",
+  "This address asks for a password. This device stays logged in for a year.": "Cette adresse demande un mot de passe. Cet appareil reste connecté pendant un an.",
+  "Log out on this device": "Se déconnecter sur cet appareil",
   "Inside Home Assistant these links would need its login. Set \"Address for email links\" in the add-on Configuration (e.g. http://homeassistant.local:8080) to get links that work from your phone and calendar.": "Dans Home Assistant, ces liens demanderaient sa connexion. Renseignez « Adresse pour les liens des e-mails » dans la Configuration de l’add-on (par ex. http://homeassistant.local:8080) pour avoir des liens qui marchent depuis votre téléphone et votre calendrier.",
 };

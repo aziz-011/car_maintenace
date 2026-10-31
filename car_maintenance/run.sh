@@ -11,6 +11,8 @@ if [ -f /data/options.json ]; then
     *) echo "Ignoring the address for email links: it must start with http:// or https:// (got: $APP_URL)"; APP_URL='' ;;
   esac
   export APP_URL
+  APP_PASSWORD=$(node -e "try { process.stdout.write(require('/data/options.json').password || '') } catch {}")
+  export APP_PASSWORD
 fi
 
 exec node /app/dist-server/server.mjs

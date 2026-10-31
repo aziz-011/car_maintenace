@@ -5,5 +5,9 @@ configuration:
       The address your phone uses to open the app, put in the reminder emails,
       e.g. http://homeassistant.local:8080 (direct port) or your Home Assistant
       address. Leave empty if you don't use email reminders.
+  password:
+    name: Password for the direct address
+    description: >-
+      Asked when the app is opened at its own address (port 8080 or your own link). Not asked inside the Home Assistant sidebar. Leave empty for no password, only on your home network.
 network:
   8080/tcp: Direct access on the home network (calendar feed, email links). Leave empty to use the app only through Home Assistant.
