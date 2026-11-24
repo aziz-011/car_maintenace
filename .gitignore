@@ -26,7 +26,7 @@ dist-claude
 *.sw?
 
 # App data saved by the local server
-data/
+/data/
 
 # The Home Assistant add-on ships the built app (npm run build:addon)
 !car_maintenance/app/dist/
