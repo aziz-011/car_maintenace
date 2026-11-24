@@ -8,10 +8,9 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ ! -d node_modules ]; then
-  echo "Installing, this only happens the first time..."
-  npm install
-fi
+# Checked on every start, so packages added by an update get installed (quick when nothing changed).
+echo "Checking packages..."
+npm install --no-audit --no-fund
 
 echo "Building the app..."
 npm run build

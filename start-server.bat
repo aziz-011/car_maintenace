@@ -10,11 +10,10 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist node_modules (
-  echo Installing, this only happens the first time...
-  call npm install
-  if errorlevel 1 goto fail
-)
+rem Checked on every start, so packages added by an update get installed (quick when nothing changed).
+echo Checking packages...
+call npm install --no-audit --no-fund
+if errorlevel 1 goto fail
 
 echo Building the app...
 call npm run build
